@@ -274,6 +274,17 @@ h1, h2, h3, h4, h5, h6 { margin-top: 0; }
     font-size: 1.2rem;
 }
 
+/* Seat Maintenance State */
+.seat.mantenimiento {
+    background-color: #f59e0b;
+    border-color: #f59e0b;
+    cursor: pointer;
+    opacity: 0.8;
+}
+.seat.mantenimiento:hover {
+    opacity: 1;
+}
+
 /* Layouts: Admin Tables */
 .table-responsive {
     overflow-x: auto;

@@ -10,8 +10,8 @@
 <body>
     <nav class="navbar">
         <a href="index.html" class="nav-brand">CineMax</a>
-        <div class="nav-links">
-            <a href="index.html">Cartelera</a>
+        <div class="nav-links" id="navAuth">
+            <!-- Navigation will be updated by updateNavbarAuth() -->
         </div>
     </nav>
 
@@ -54,8 +54,11 @@
             <span style="font-size: 4rem;">🎉</span>
             <h2 class="text-success" style="font-size: 2.5rem; margin-bottom: 1rem;">¡Compra Exitosa!</h2>
             <p style="font-size: 1.2rem;" class="text-muted">Muestra el código en taquilla para ingresar.</p>
-            <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--primary); padding: 1.5rem 3rem; border-radius: 12px; margin: 2rem auto; display: inline-block;">
+            <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--primary); padding: 1.5rem 3rem; border-radius: 12px; margin: 2rem auto; display: inline-flex; align-items: center; gap: 1rem;">
                 <h1 style="margin:0; letter-spacing: 6px; font-family: monospace;" class="text-primary" id="ticketCode"></h1>
+                <button onclick="copyTicketCode()" style="background: var(--primary); border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;" title="Copiar código">
+                    📋 Copiar
+                </button>
             </div>
             <br>
             <a href="index.html" class="btn btn-primary" style="margin-top: 1rem;">Volver a la Cartelera</a>
@@ -69,11 +72,20 @@
         let selectedSeats = [];
         let pricePerSeat = 0;
         
+        // Obtener usuario logueado (si existe)
+        let currentUser = null;
+        
         if (!funcionId) {
             window.location.href = 'index.html';
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
+            // Actualizar navbar según estado de sesión
+            updateNavbarAuth();
+            
+            // Obtener usuario actual
+            currentUser = getCurrentUser();
+            
             try {
                 // Truco para precio
                 const funciones = await apiCall('/funciones');
@@ -152,7 +164,7 @@
                 const response = await apiCall('/tiquetes', 'POST', {
                     funcion_id: funcionId,
                     asientos: selectedSeats,
-                    usuario_id: null
+                    usuario_id: currentUser ? currentUser.id : null
                 });
                 
                 document.getElementById('mapContainer').classList.add('hidden');
@@ -166,6 +178,16 @@
                 btn.innerText = 'Confirmar Compra';
             }
         });
+        
+        // Función para copiar código del tiquete
+        function copyTicketCode() {
+            const code = document.getElementById('ticketCode').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('¡Código copiado al portapapeles!');
+            }).catch(err => {
+                console.error('Error al copiar:', err);
+            });
+        }
     </script>
 </body>
 </html>

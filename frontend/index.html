@@ -10,10 +10,8 @@
 <body>
     <nav class="navbar">
         <a href="index.html" class="nav-brand">CineMax</a>
-        <div class="nav-links">
-            <a href="index.html">Cartelera</a>
-            <a href="validacion.html">Validar Tiquete</a>
-            <a href="admin.html">Admin</a>
+        <div class="nav-links" id="navAuth">
+            <!-- Navigation will be updated by updateNavbarAuth() -->
         </div>
     </nav>
 
@@ -31,6 +29,9 @@
     <script src="js/app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
+            // Actualizar navbar según estado de sesión
+            updateNavbarAuth();
+            
             try {
                 const funciones = await apiCall('/funciones');
                 const grid = document.getElementById('moviesGrid');
@@ -69,7 +70,7 @@
                     card.innerHTML = `
                         <img src="${movie.imagen_url}" alt="${movie.titulo}" class="movie-img">
                         <div class="movie-info">
-                            <h3 class="movie-title">${movie.titulo}</h3>
+                            <h3 class="movie-title" style="color: #fff;">${movie.titulo}</h3>
                             <div class="movie-meta">
                                 <span class="badge" style="color: var(--success); border: 1px solid var(--success);">Funciones Disponibles</span>
                             </div>

@@ -6,15 +6,146 @@
     <link rel="stylesheet" href="css/styles.css">
     <style>
         .form-control { background: rgba(0,0,0,0.2) !important; }
+        
+        /* Toast Notifications */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out;
+            min-width: 250px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        .toast.info { background: var(--primary); }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* Modal */
+        #modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+        #modal-overlay.active { display: flex; }
+        .modal-content {
+            background: #1a1a2e;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+        
+        /* Spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+        }
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+            border-radius: 8px 8px 0 0;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.05); }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Tables */
+        .table-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+        }
+        
+        /* Stats Cards */
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
     </style>
 </head>
 <body>
     <nav class="navbar">
         <a href="index.html" class="nav-brand">CineMax Admin</a>
-        <div class="nav-links">
+        <div class="nav-links" id="navAuth">
             <a href="index.html">Ver Sitio</a>
+            <a href="login.html" style="color: var(--primary);">Iniciar Sesión</a>
         </div>
     </nav>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Modal de Confirmación -->
+    <div id="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-title" style="margin-bottom: 1rem;">Confirmar Acción</h3>
+            <p id="modal-message" class="text-muted">¿Está seguro de realizar esta acción?</p>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-danger" id="modal-confirm">Confirmar</button>
+            </div>
+        </div>
+    </div>
 
     <div class="container" style="margin-top: 2rem; padding-bottom: 4rem;">
         
@@ -29,94 +160,458 @@
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem;">
-            <!-- Peliculas Form -->
-            <div class="glass-panel" style="padding: 2rem;">
-                <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Registrar Película</h3>
-                <form id="formPelicula">
-                    <div class="form-group">
-                        <label>Título de la Película</label>
-                        <input type="text" id="p_titulo" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Sinopsis / Descripción</label>
-                        <textarea id="p_desc" class="form-control" rows="3"></textarea>
-                    </div>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('gestion')">Gestión</button>
+            <button class="tab-btn" onclick="switchTab('asientos')">Asientos</button>
+            <button class="tab-btn" onclick="switchTab('reportes')">Reportes</button>
+        </div>
+
+        <!-- Tab: Gestión -->
+        <div id="tab-gestion" class="tab-content active">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem;">
+                <!-- Peliculas Form -->
+                <div class="glass-panel" style="padding: 2rem;">
+                    <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;" id="form-pelicula-title">Registrar Película</h3>
+                    <form id="formPelicula">
+                        <input type="hidden" id="p_id" value="">
                         <div class="form-group">
-                            <label>Duración (minutos)</label>
-                            <input type="number" id="p_duracion" class="form-control" required min="1">
+                            <label>Título de la Película</label>
+                            <input type="text" id="p_titulo" class="form-control" required>
                         </div>
                         <div class="form-group">
-                            <label>Género</label>
-                            <input type="text" id="p_genero" class="form-control" placeholder="Ej: Acción">
+                            <label>Sinopsis / Descripción</label>
+                            <textarea id="p_desc" class="form-control" rows="3"></textarea>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label>URL de la Imagen (Póster)</label>
-                        <input type="url" id="p_img" class="form-control">
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Registrar Película</button>
-                </form>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem;">
+                            <div class="form-group">
+                                <label>Duración (min)</label>
+                                <input type="number" id="p_duracion" class="form-control" required min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Género</label>
+                                <input type="text" id="p_genero" class="form-control" placeholder="Ej: Acción">
+                            </div>
+                            <div class="form-group">
+                                <label>Clasificación</label>
+                                <select id="p_clasificacion" class="form-control">
+                                    <option value="+0">+0</option>
+                                    <option value="+7">+7</option>
+                                    <option value="+13">+13</option>
+                                    <option value="+16">+16</option>
+                                    <option value="+18">+18</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>URL del Trailer (YouTube)</label>
+                            <input type="url" id="p_trailer" class="form-control" placeholder="https://youtube.com/watch?v=...">
+                        </div>
+                        <div class="form-group">
+                            <label>URL de la Imagen (Póster)</label>
+                            <input type="url" id="p_img" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Estado</label>
+                            <select id="p_estado" class="form-control">
+                                <option value="activa">Activa</option>
+                                <option value="inactiva">Inactiva</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 1rem;">
+                            <button type="submit" class="btn btn-primary" style="flex: 1;" id="btn-pelicula-submit">Registrar Película</button>
+                            <button type="button" class="btn btn-secondary" id="btn-pelicula-cancel" style="display: none;" onclick="resetFormPelicula()">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Funciones Form -->
+                <div class="glass-panel" style="padding: 2rem;">
+                    <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;" id="form-funcion-title">Programar Función</h3>
+                    <form id="formFuncion">
+                        <input type="hidden" id="f_id" value="">
+                        <div class="form-group">
+                            <label>Seleccionar Película</label>
+                            <select id="f_peli" class="form-control" required>
+                                <option value="">Cargando películas...</option>
+                            </select>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+                            <div class="form-group">
+                                <label>Fecha</label>
+                                <input type="date" id="f_fecha" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Hora</label>
+                                <input type="time" id="f_hora" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Precio por Tiquete ($)</label>
+                            <input type="number" step="0.01" id="f_precio" class="form-control" required min="0">
+                        </div>
+                        <div style="display: flex; gap: 1rem;">
+                            <button type="submit" class="btn btn-primary" style="flex: 1;" id="btn-funcion-submit">Publicar Función</button>
+                            <button type="button" class="btn btn-secondary" id="btn-funcion-cancel" style="display: none;" onclick="resetFormFuncion()">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
-            <!-- Funciones Form -->
-            <div class="glass-panel" style="padding: 2rem;">
-                <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Programar Función</h3>
-                <form id="formFuncion">
-                    <div class="form-group">
-                        <label>Seleccionar Película</label>
-                        <select id="f_peli" class="form-control" required>
-                            <option value="">Cargando películas...</option>
-                        </select>
-                    </div>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-                        <div class="form-group">
-                            <label>Fecha</label>
-                            <input type="date" id="f_fecha" class="form-control" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Hora</label>
-                            <input type="time" id="f_hora" class="form-control" required>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Precio por Tiquete ($)</label>
-                        <input type="number" step="0.01" id="f_precio" class="form-control" required min="0">
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Publicar Función</button>
-                </form>
+            <!-- Listado de Películas -->
+            <div class="glass-panel" style="padding: 2rem; margin-top: 2rem;">
+                <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Catálogo de Películas</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Título</th>
+                                <th>Género</th>
+                                <th>Duración</th>
+                                <th>Clasificación</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblPeliculas">
+                            <tr><td colspan="6" class="text-center">Cargando películas...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Listado de Funciones -->
+            <div class="glass-panel" style="padding: 2rem; margin-top: 2rem;">
+                <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Funciones Programadas</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Película</th>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Precio</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblFunciones">
+                            <tr><td colspan="6" class="text-center">Cargando funciones...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Reporte de Ocupación -->
+            <div class="glass-panel" style="padding: 2rem; margin-top: 2rem;">
+                <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Reporte de Ocupación por Función</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Película</th>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Ocupación (Sillas)</th>
+                                <th>Estado de Sala</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblOcupacion">
+                            <tr><td colspan="5" class="text-center">Cargando datos del sistema...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <div class="glass-panel" style="padding: 2rem; margin-top: 2rem;">
-            <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Reporte de Ocupación por Función</h3>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Película</th>
-                            <th>Fecha</th>
-                            <th>Hora</th>
-                            <th>Ocupación (Sillas)</th>
-                            <th>Estado de Sala</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tblOcupacion">
-                        <tr><td colspan="5" class="text-center">Cargando datos del sistema...</td></tr>
-                    </tbody>
-                </table>
+        <!-- Tab: Asientos -->
+        <div id="tab-asientos" class="tab-content">
+            <div class="glass-panel" style="padding: 2rem;">
+                <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Gestión de Asientos por Función</h3>
+                
+                <!-- Selector de Función -->
+                <div class="form-group">
+                    <label>Seleccionar Función:</label>
+                    <select id="asiento-funcion" class="form-control" onchange="cargarAsientos()">
+                        <option value="">-- Selecciona una función --</option>
+                    </select>
+                </div>
+                
+                <!-- Leyenda -->
+                <div style="display: flex; justify-content: center; gap: 2rem; margin: 1.5rem 0; flex-wrap: wrap;">
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <div class="seat" style="cursor:default; transform:none; border-color: rgba(255,255,255,0.2);"></div> <span>Disponible</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <div class="seat ocupado" style="cursor:default; transform:none;"></div> <span>Ocupado</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <div class="seat mantenimiento" style="cursor:default; transform:none; background: #f59e0b;"></div> <span>Mantenimiento</span>
+                    </div>
+                </div>
+                
+                <!-- Mapa de Asientos -->
+                <div id="asientos-mapa" class="seat-map-container" style="display: none;">
+                    <div class="screen-area">PANTALLA</div>
+                    <div id="asientos-grid" class="seat-grid"></div>
+                </div>
+                
+                <div id="asientos-loading" class="text-center text-muted" style="padding: 2rem; display: none;">
+                    Cargando asientos...
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Reportes -->
+        <div id="tab-reportes" class="tab-content">
+            <div class="report-grid">
+                <!-- Ventas por Día -->
+                <div class="glass-panel" style="padding: 2rem;">
+                    <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Ventas por Día</h3>
+                    <div id="ventas-dia-loading" class="text-center text-muted" style="padding: 2rem;">Cargando datos...</div>
+                    <div class="table-responsive" id="tblVentasDiaContainer" style="display: none;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Total Ventas</th>
+                                    <th>Cantidad</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tblVentasDia"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Películas Más Vistas -->
+                <div class="glass-panel" style="padding: 2rem;">
+                    <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Top 5 Películas Más Vistas</h3>
+                    <div id="peliculas-vistas-loading" class="text-center text-muted" style="padding: 2rem;">Cargando datos...</div>
+                    <div class="table-responsive" id="tblPeliculasVistasContainer" style="display: none;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Película</th>
+                                    <th>Funciones</th>
+                                    <th>Tiquetes Vendidos</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tblPeliculasVistas"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script src="js/app.js"></script>
     <script>
+        let editandoPelicula = false;
+        let editandoFuncion = false;
+
+        // Verificar autenticación al cargar
         document.addEventListener('DOMContentLoaded', async () => {
+            // Verificar que el usuario esté autenticado y sea admin
+            if (!isAuthenticated()) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            const user = getCurrentUser();
+            if (user.rol !== 'admin') {
+                // Si no es admin, redirigir al index
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            // Actualizar navbar con info del usuario
+            const navAuth = document.getElementById('navAuth');
+            navAuth.innerHTML = `
+                <a href="index.html">Ver Sitio</a>
+                <span style="color: var(--text-muted); margin: 0 0.5rem;">|</span>
+                <span style="color: var(--primary);">${user.nombre}</span>
+                <a href="#" onclick="logout(); return false;" style="color: var(--danger);">Cerrar Sesión</a>
+            `;
+            
             loadDashboard();
             loadPeliculasSelect();
+            loadPeliculas();
+            loadFunciones();
+            loadFuncionesParaAsientos();
+        });
+        
+        // Cargar funciones para el dropdown de asientos
+        async function loadFuncionesParaAsientos() {
+            try {
+                const funciones = await apiCall('/funciones/all');
+                const select = document.getElementById('asiento-funcion');
+                select.innerHTML = '<option value="">-- Selecciona una función --</option>';
+                
+                funciones.forEach(f => {
+                    const fecha = new Date(f.fecha).toLocaleDateString('es-CO');
+                    const hora = f.hora ? f.hora.substring(0, 5) : '';
+                    select.innerHTML += `<option value="${f.id}">${f.titulo} - ${fecha} ${hora}</option>`;
+                });
+            } catch (error) {
+                console.error('Error cargando funciones:', error);
+            }
+        }
+        
+        // Cargar asientos de una función
+        async function cargarAsientos() {
+            const funcionId = document.getElementById('asiento-funcion').value;
+            const mapaContainer = document.getElementById('asientos-mapa');
+            const loading = document.getElementById('asientos-loading');
+            
+            if (!funcionId) {
+                mapaContainer.style.display = 'none';
+                return;
+            }
+            
+            mapaContainer.style.display = 'none';
+            loading.style.display = 'block';
+            
+            try {
+                const asientos = await apiCall(`/funciones/${funcionId}/asientos`);
+                loading.style.display = 'none';
+                mapaContainer.style.display = 'block';
+                
+                const grid = document.getElementById('asientos-grid');
+                grid.innerHTML = '';
+                
+                // Agrupar por fila
+                const rows = {};
+                asientos.forEach(a => {
+                    if (!rows[a.fila]) rows[a.fila] = [];
+                    rows[a.fila].push(a);
+                });
+                
+                // Ordenar filas y crear grid
+                Object.keys(rows).sort().forEach(fila => {
+                    const rowLabel = document.createElement('div');
+                    rowLabel.className = 'seat-row-label';
+                    rowLabel.innerText = fila;
+                    grid.appendChild(rowLabel);
+                    
+                    rows[fila].sort((a, b) => a.columna - b.columna).forEach(asiento => {
+                        const div = document.createElement('div');
+                        div.className = 'seat';
+                        div.title = `Fila ${asiento.fila} - Asiento ${asiento.columna} (Clic para cambiar estado)`;
+                        div.dataset.id = asiento.id;
+                        div.dataset.funcion = funcionId;
+                        
+                        // Determinar clase según estado
+                        if (asiento.estado_funcion === 'ocupado') {
+                            div.classList.add('ocupado');
+                            div.title += ' - Occupied';
+                        } else {
+                            // Disponible - clic para cambiar a mantenimiento
+                            div.onclick = () => {
+                                if (confirm('¿Cambiar a estado Mantenimiento?')) {
+                                    cambiarEstadoAsiento(funcionId, asiento.id, 'mantenimiento');
+                                }
+                            };
+                        }
+                        
+                        grid.appendChild(div);
+                    });
+                });
+                
+                // Añadir listener para asientos de mantenimiento (clic para liberar)
+                setTimeout(() => {
+                    document.querySelectorAll('#asientos-grid .seat').forEach(seat => {
+                        seat.addEventListener('dblclick', function() {
+                            const id = this.dataset.id;
+                            if (confirm('¿Liberar este asiento (cambiar a disponible)?')) {
+                                cambiarEstadoAsiento(funcionId, id, 'disponible');
+                            }
+                        });
+                    });
+                }, 100);
+                
+            } catch (error) {
+                loading.innerText = 'Error al cargar asientos';
+                console.error(error);
+            }
+        }
+        
+        // Cambiar estado de un asiento
+        async function cambiarEstadoAsiento(funcionId, asientoId, nuevoEstado) {
+            try {
+                const response = await fetch(`http://localhost:5000/api/funciones/${funcionId}/asientos/${asientoId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ estado: nuevoEstado })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast('Estado actualizado: ' + nuevoEstado, 'success');
+                    cargarAsientos(); // Recargar el mapa
+                } else {
+                    showToast(result.error || 'Error al actualizar', 'error');
+                }
+            } catch (error) {
+                showToast('Error de conexión', 'error');
+                console.error(error);
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            document.querySelector(`.tab-btn[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            if (tabName === 'reportes') {
+                loadReportes();
+            }
+        }
+
+        // ===== TOAST NOTIFICATIONS =====
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ';
+            toast.innerHTML = `<span>${icon}</span> ${message}`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ===== MODAL =====
+        let modalCallback = null;
+
+        function showModal(title, message, confirmText, onConfirm) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-message').innerText = message;
+            document.getElementById('modal-confirm').innerText = confirmText;
+            modalCallback = onConfirm;
+            document.getElementById('modal-overlay').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.remove('active');
+            modalCallback = null;
+        }
+
+        document.getElementById('modal-confirm').addEventListener('click', () => {
+            if (modalCallback) {
+                modalCallback();
+            }
+            closeModal();
         });
 
+        // ===== DASHBOARD =====
         async function loadDashboard() {
             try {
                 const data = await apiCall('/admin/dashboard');
@@ -159,6 +654,7 @@
             }
         }
 
+        // ===== PELÍCULAS =====
         async function loadPeliculasSelect() {
             try {
                 const peliculas = await apiCall('/peliculas');
@@ -173,11 +669,101 @@
             }
         }
 
+        async function loadPeliculas() {
+            try {
+                const peliculas = await apiCall('/peliculas');
+                const tbody = document.getElementById('tblPeliculas');
+                
+                if (peliculas.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay películas registradas.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                peliculas.forEach(p => {
+                    const isActiva = p.estado === 'activa';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${p.titulo}</strong></td>
+                            <td>${p.genero || '-'}</td>
+                            <td>${p.duracion} min</td>
+                            <td><span class="badge" style="background:var(--secondary);">${p.clasificacion || '+0'}</span></td>
+                            <td>
+                                <span class="badge" style="background:${isActiva ? 'var(--success)' : 'var(--danger)'};">
+                                    ${isActiva ? 'Activa' : 'Inactiva'}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="table-actions">
+                                    <button class="btn btn-sm btn-primary" onclick="editarPelicula(${p.id}, '${escapeHtml(p.titulo)}', '${escapeHtml(p.descripcion || '')}', ${p.duracion}, '${p.genero || ''}', '${p.clasificacion || '+0'}', '${p.imagen_url || ''}', '${p.trailer_url || ''}', '${p.estado || 'activa'}')">Editar</button>
+                                    <button class="btn btn-sm btn-danger" onclick="eliminarPelicula(${p.id}, '${escapeHtml(p.titulo)}')">Eliminar</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) {
+                console.error(e);
+                document.getElementById('tblPeliculas').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar películas</td></tr>';
+            }
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/'/g, "\\'").replace(/"/g, '"');
+        }
+
+        function editarPelicula(id, titulo, descripcion, duracion, genero, clasificacion, imagen, trailer, estado) {
+            editandoPelicula = true;
+            document.getElementById('p_id').value = id;
+            document.getElementById('p_titulo').value = titulo;
+            document.getElementById('p_desc').value = descripcion;
+            document.getElementById('p_duracion').value = duracion;
+            document.getElementById('p_genero').value = genero;
+            document.getElementById('p_clasificacion').value = clasificacion;
+            document.getElementById('p_trailer').value = trailer;
+            document.getElementById('p_img').value = imagen;
+            document.getElementById('p_estado').value = estado;
+            
+            document.getElementById('form-pelicula-title').innerText = 'Editar Película';
+            document.getElementById('btn-pelicula-submit').innerText = 'Actualizar Película';
+            document.getElementById('btn-pelicula-cancel').style.display = 'block';
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetFormPelicula() {
+            editandoPelicula = false;
+            document.getElementById('formPelicula').reset();
+            document.getElementById('p_id').value = '';
+            document.getElementById('form-pelicula-title').innerText = 'Registrar Película';
+            document.getElementById('btn-pelicula-submit').innerText = 'Registrar Película';
+            document.getElementById('btn-pelicula-cancel').style.display = 'none';
+        }
+
+        function eliminarPelicula(id, titulo) {
+            showModal(
+                'Eliminar Película',
+                `¿Está seguro de eliminar la película "${titulo}"? Esta acción no se puede deshacer.`,
+                'Eliminar',
+                async () => {
+                    try {
+                        await apiCall(`/peliculas/${id}`, 'DELETE');
+                        showToast('Película eliminada correctamente', 'success');
+                        loadPeliculas();
+                        loadPeliculasSelect();
+                        loadDashboard();
+                    } catch (err) {
+                        showToast('Error al eliminar película: ' + err.message, 'error');
+                    }
+                }
+            );
+        }
+
         document.getElementById('formPelicula').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
+            const btn = document.getElementById('btn-pelicula-submit');
             const originalText = btn.innerText;
-            btn.innerText = 'Guardando...';
+            btn.innerHTML = '<span class="spinner"></span> Guardando...';
             btn.disabled = true;
 
             const body = {
@@ -185,26 +771,119 @@
                 descripcion: document.getElementById('p_desc').value,
                 duracion: document.getElementById('p_duracion').value,
                 genero: document.getElementById('p_genero').value,
+                clasificacion: document.getElementById('p_clasificacion').value,
+                trailer_url: document.getElementById('p_trailer').value,
                 imagen_url: document.getElementById('p_img').value || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=800&q=80',
+                estado: document.getElementById('p_estado').value,
             };
+
             try {
-                await apiCall('/peliculas', 'POST', body);
-                alert('🎬 Película registrada con éxito en el catálogo');
-                e.target.reset();
-                loadPeliculasSelect(); // Reload the select
+                if (editandoPelicula) {
+                    await apiCall(`/peliculas/${document.getElementById('p_id').value}`, 'PUT', body);
+                    showToast('Película actualizada correctamente', 'success');
+                } else {
+                    await apiCall('/peliculas', 'POST', body);
+                    showToast('Película registrada con éxito', 'success');
+                }
+                resetFormPelicula();
+                loadPeliculas();
+                loadPeliculasSelect();
             } catch (err) {
-                alert('Error al crear película: ' + err.message);
+                showToast('Error: ' + err.message, 'error');
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
             }
         });
 
+        // ===== FUNCIONES =====
+        async function loadFunciones() {
+            try {
+                // Use /all endpoint to see all functions in admin panel
+                const funciones = await apiCall('/funciones/all');
+                const tbody = document.getElementById('tblFunciones');
+                
+                if (funciones.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay funciones programadas.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                funciones.forEach(f => {
+                    const isDisponible = f.estado === 'disponible';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${f.titulo_pelicula}</strong></td>
+                            <td>${f.fecha}</td>
+                            <td>${f.hora.substring(0,5)}</td>
+                            <td>$${parseFloat(f.precio).toFixed(2)}</td>
+                            <td>
+                                <span class="badge" style="background:${isDisponible ? 'var(--success)' : 'var(--danger)'};">
+                                    ${isDisponible ? 'Disponible' : 'Cancelada'}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="table-actions">
+                                    ${isDisponible ? `<button class="btn btn-sm btn-primary" onclick="editarFuncion(${f.id}, '${f.pelicula_id}', '${f.fecha}', '${f.hora}', ${f.precio})">Editar</button>` : ''}
+                                    ${isDisponible ? `<button class="btn btn-sm btn-danger" onclick="cancelarFuncion(${f.id}, '${f.titulo_pelicula}')">Cancelar</button>` : ''}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) {
+                console.error(e);
+                document.getElementById('tblFunciones').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar funciones</td></tr>';
+            }
+        }
+
+        function editarFuncion(id, peliculaId, fecha, hora, precio) {
+            editandoFuncion = true;
+            document.getElementById('f_id').value = id;
+            document.getElementById('f_peli').value = peliculaId;
+            document.getElementById('f_fecha').value = fecha;
+            document.getElementById('f_hora').value = hora.substring(0,5);
+            document.getElementById('f_precio').value = precio;
+            
+            document.getElementById('form-funcion-title').innerText = 'Editar Función';
+            document.getElementById('btn-funcion-submit').innerText = 'Actualizar Función';
+            document.getElementById('btn-funcion-cancel').style.display = 'block';
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetFormFuncion() {
+            editandoFuncion = false;
+            document.getElementById('formFuncion').reset();
+            document.getElementById('f_id').value = '';
+            document.getElementById('form-funcion-title').innerText = 'Programar Función';
+            document.getElementById('btn-funcion-submit').innerText = 'Publicar Función';
+            document.getElementById('btn-funcion-cancel').style.display = 'none';
+        }
+
+        function cancelarFuncion(id, titulo) {
+            showModal(
+                'Cancelar Función',
+                `¿Está seguro de cancelar la función de "${titulo}"?`,
+                'Cancelar Función',
+                async () => {
+                    try {
+                        await apiCall(`/funciones/${id}`, 'DELETE');
+                        showToast('Función cancelada correctamente', 'success');
+                        loadFunciones();
+                        loadDashboard();
+                    } catch (err) {
+                        showToast('Error al cancelar función: ' + err.message, 'error');
+                    }
+                }
+            );
+        }
+
         document.getElementById('formFuncion').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
+            const btn = document.getElementById('btn-funcion-submit');
             const originalText = btn.innerText;
-            btn.innerText = 'Creando Función...';
+            btn.innerHTML = '<span class="spinner"></span> Guardando...';
             btn.disabled = true;
 
             const body = {
@@ -213,18 +892,96 @@
                 hora: document.getElementById('f_hora').value,
                 precio: document.getElementById('f_precio').value,
             };
+
             try {
-                await apiCall('/funciones', 'POST', body);
-                alert('🗓️ Nueva función programada con éxito');
-                e.target.reset();
-                loadDashboard(); // Refresh occupancy data
+                if (editandoFuncion) {
+                    await apiCall(`/funciones/${document.getElementById('f_id').value}`, 'PUT', body);
+                    showToast('Función actualizada correctamente', 'success');
+                } else {
+                    await apiCall('/funciones', 'POST', body);
+                    showToast('Función programada con éxito', 'success');
+                }
+                resetFormFuncion();
+                loadFunciones();
+                loadDashboard();
             } catch (err) {
-                alert('Error al programar función: ' + err.message);
+                showToast('Error: ' + err.message, 'error');
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
             }
         });
+
+        // ===== REPORTES =====
+        async function loadReportes() {
+            loadVentasPorDia();
+            loadPeliculasMasVistas();
+        }
+
+        async function loadVentasPorDia() {
+            const loading = document.getElementById('ventas-dia-loading');
+            const container = document.getElementById('tblVentasDiaContainer');
+            const tbody = document.getElementById('tblVentasDia');
+
+            try {
+                const data = await apiCall('/admin/ventas-por-dia');
+                
+                if (!data || data.length === 0) {
+                    loading.innerText = 'No hay datos de ventas disponibles';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.forEach(row => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${row.fecha}</td>
+                            <td><strong>$${parseFloat(row.total_ventas).toFixed(2)}</strong></td>
+                            <td>${row.cantidad} tiquetes</td>
+                        </tr>
+                    `;
+                });
+
+                loading.style.display = 'none';
+                container.style.display = 'block';
+            } catch (e) {
+                console.error(e);
+                loading.innerText = 'Error al cargar datos';
+            }
+        }
+
+        async function loadPeliculasMasVistas() {
+            const loading = document.getElementById('peliculas-vistas-loading');
+            const container = document.getElementById('tblPeliculasVistasContainer');
+            const tbody = document.getElementById('tblPeliculasVistas');
+
+            try {
+                const data = await apiCall('/admin/peliculas-mas-vistas');
+                
+                if (!data || data.length === 0) {
+                    loading.innerText = 'No hay datos disponibles';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.forEach((row, index) => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><span class="badge" style="background:${index === 0 ? 'var(--gold, #ffd700)' : 'var(--secondary)'};">${index + 1}</span></td>
+                            <td><strong>${row.titulo}</strong></td>
+                            <td>${row.cantidad_funciones}</td>
+                            <td><strong>${row.tiquetes_vendidos}</strong></td>
+                        </tr>
+                    `;
+                });
+
+                loading.style.display = 'none';
+                container.style.display = 'block';
+            } catch (e) {
+                console.error(e);
+                loading.innerText = 'Error al cargar datos';
+            }
+        }
     </script>
 </body>
 </html>
