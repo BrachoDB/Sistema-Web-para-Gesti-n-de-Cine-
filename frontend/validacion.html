@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>CineMax - Validación Tiquete</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="nav-brand">CineMax</a>
+        <div class="nav-links">
+            <a href="index.html">Cartelera</a>
+            <a href="validacion.html">Validar Tiquete</a>
+            <a href="admin.html">Admin</a>
+        </div>
+    </nav>
+    <div class="container" style="max-width: 600px; margin-top: 4rem;">
+        <div class="glass-panel" style="padding: 3rem; text-align: center;">
+            <h2 style="margin-bottom: 2rem;">Validar Ingreso a Sala</h2>
+            <div class="form-group" style="text-align: left;">
+                <label>Código del Tiquete:</label>
+                <input type="text" id="codigoInput" class="form-control" placeholder="Ej: A1B2C3D4" style="text-transform: uppercase; font-size: 1.25rem; text-align: center; letter-spacing: 4px;">
+            </div>
+            <button id="btnValidar" class="btn btn-primary" style="width: 100%; font-size: 1.2rem; padding: 1rem;">Verificar Acceso</button>
+            <div id="resultado" style="margin-top: 2rem; font-size: 1.25rem; padding: 1.5rem; border-radius: 8px; border: 1px solid transparent;" class="hidden">
+            </div>
+        </div>
+    </div>
+    <script src="js/app.js"></script>
+    <script>
+        document.getElementById('btnValidar').addEventListener('click', async () => {
+            const codigo = document.getElementById('codigoInput').value.trim().toUpperCase();
+            if(!codigo) {
+                document.getElementById('codigoInput').focus();
+                return;
+            }
+            
+            const btn = document.getElementById('btnValidar');
+            btn.innerText = 'Verificando...';
+            btn.disabled = true;
+
+            try {
+                const response = await apiCall('/tiquetes/validar', 'POST', { codigo });
+                const resDiv = document.getElementById('resultado');
+                resDiv.classList.remove('hidden', 'text-success', 'text-danger', 'text-muted');
+                resDiv.style.borderColor = 'transparent';
+                
+                if(response.estado === 'Válido') {
+                    resDiv.innerHTML = '<h2>✅ ACCESO CONCEDIDO</h2><p>El tiquete es válido y ha sido marcado como usado.</p>';
+                    resDiv.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+                    resDiv.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                    resDiv.classList.add('text-success');
+                } else if(response.estado === 'Usado') {
+                    resDiv.innerHTML = '<h2>❌ Tiquete Ya Usado</h2><p>Este tiquete ya fue validado anteriormente.</p>';
+                    resDiv.style.backgroundColor = 'rgba(245, 158, 11, 0.15)';
+                    resDiv.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+                    resDiv.style.color = '#f59e0b';
+                } else {
+                    resDiv.innerHTML = '<h2>🚫 Código Inválido</h2><p>No se encontró este código en el sistema.</p>';
+                    resDiv.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                    resDiv.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                    resDiv.classList.add('text-danger');
+                }
+            } catch (e) {
+                alert('Error al validar: ' + e.message);
+            } finally {
+                btn.innerText = 'Verificar Acceso';
+                btn.disabled = false;
+                document.getElementById('codigoInput').value = '';
+                document.getElementById('codigoInput').focus();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineMax - Cartelera</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="nav-brand">CineMax</a>
+        <div class="nav-links">
+            <a href="index.html">Cartelera</a>
+            <a href="validacion.html">Validar Tiquete</a>
+            <a href="admin.html">Admin</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <header class="text-center" style="margin: 3rem 0;">
+            <h1 style="font-size: 3.5rem; margin-bottom: 1rem; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; color: transparent;">Cartelera Disponible</h1>
+            <p class="text-muted" style="font-size: 1.2rem;">Vive la magia del cine interactivo y premium con nuestra selección.</p>
+        </header>
+
+        <div id="moviesGrid" class="movies-grid">
+            <div class="text-center text-muted" style="grid-column: 1 / -1;">Cargando novedades...</div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const funciones = await apiCall('/funciones');
+                const grid = document.getElementById('moviesGrid');
+                grid.innerHTML = '';
+                
+                if (funciones.length === 0) {
+                    grid.innerHTML = '<div class="text-center text-muted glass-panel" style="grid-column:1/-1; padding: 3rem;">No hay funciones programadas actualmente.</div>';
+                    return;
+                }
+
+                // Group by Movie
+                const moviesMap = {};
+                funciones.forEach(f => {
+                    if(!moviesMap[f.pelicula_id]) {
+                        moviesMap[f.pelicula_id] = {
+                            id: f.pelicula_id,
+                            titulo: f.titulo,
+                            imagen_url: f.imagen_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80',
+                            funciones: []
+                        };
+                    }
+                    moviesMap[f.pelicula_id].funciones.push(f);
+                });
+
+                Object.values(moviesMap).forEach(movie => {
+                    const card = document.createElement('div');
+                    card.className = 'glass-panel movie-card';
+                    
+                    let functionsHtml = movie.funciones.map(f => `
+                        <button class="btn btn-primary" style="margin-right:0.5rem; margin-bottom:0.5rem; font-size: 0.85rem;" 
+                                onclick="window.location.href='compra.html?funcion_id=${f.id}'">
+                            ${formatDate(f.fecha).split(',')[0]} - ${f.hora.substring(0,5)} <br> <span style="font-weight:normal; font-size:0.75rem;">$${Number(f.precio)}</span>
+                        </button>
+                    `).join('');
+
+                    card.innerHTML = `
+                        <img src="${movie.imagen_url}" alt="${movie.titulo}" class="movie-img">
+                        <div class="movie-info">
+                            <h3 class="movie-title">${movie.titulo}</h3>
+                            <div class="movie-meta">
+                                <span class="badge" style="color: var(--success); border: 1px solid var(--success);">Funciones Disponibles</span>
+                            </div>
+                            <div style="margin-top:auto;">
+                                <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 0.5rem;">Horarios:</p>
+                                ${functionsHtml}
+                            </div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('moviesGrid').innerHTML = '<div class="text-center text-danger glass-panel" style="grid-column:1/-1; padding: 2rem;">Error de conexión con el servidor. Por favor, asegúrese de que el backend esté en ejecución.</div>';
+            }
+        });
+    </script>
+</body>
+</html>

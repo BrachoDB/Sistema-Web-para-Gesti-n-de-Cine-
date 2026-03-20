@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selección de Asientos - CineMax</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="nav-brand">CineMax</a>
+        <div class="nav-links">
+            <a href="index.html">Cartelera</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="loadingOverlay" class="text-center" style="margin-top: 5rem;">
+            <p class="text-muted">Preparando la sala...</p>
+        </div>
+
+        <div id="mapContainer" class="glass-panel seat-map-container hidden">
+            <h2 class="text-center" style="margin-bottom:2rem;">Selecciona tus Asientos</h2>
+            
+            <div class="screen-area">PANTALLA</div>
+            
+            <div id="seatGrid" class="seat-grid">
+                <!-- Asientos inyectados via JS -->
+            </div>
+
+            <div style="display: flex; justify-content: center; gap: 2rem; margin-top: 3rem;">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div class="seat" style="cursor:default; transform:none; border-color: rgba(255,255,255,0.2);"></div> <span>Disponible</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div class="seat selected" style="cursor:default; transform:none; box-shadow:none;"></div> <span>Seleccionado</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div class="seat ocupado" style="cursor:default; transform:none;"></div> <span>Ocupado</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 3rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin-bottom: 0;">Total: $<span id="totalPrice" class="text-primary">0</span></h3>
+                    <p class="text-muted" style="margin-top: 0.5rem;">Asientos seleccionados: <span id="selectedCount">0</span></p>
+                </div>
+                <button id="btnPagar" class="btn btn-success" style="font-size: 1.25rem;" disabled>Confirmar Compra</button>
+            </div>
+        </div>
+        
+        <div id="ticketSuccess" class="glass-panel hidden" style="margin-top:4rem; padding: 4rem 2rem; text-align: center;">
+            <span style="font-size: 4rem;">🎉</span>
+            <h2 class="text-success" style="font-size: 2.5rem; margin-bottom: 1rem;">¡Compra Exitosa!</h2>
+            <p style="font-size: 1.2rem;" class="text-muted">Muestra el código en taquilla para ingresar.</p>
+            <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--primary); padding: 1.5rem 3rem; border-radius: 12px; margin: 2rem auto; display: inline-block;">
+                <h1 style="margin:0; letter-spacing: 6px; font-family: monospace;" class="text-primary" id="ticketCode"></h1>
+            </div>
+            <br>
+            <a href="index.html" class="btn btn-primary" style="margin-top: 1rem;">Volver a la Cartelera</a>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const funcionId = urlParams.get('funcion_id');
+        let selectedSeats = [];
+        let pricePerSeat = 0;
+        
+        if (!funcionId) {
+            window.location.href = 'index.html';
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Truco para precio
+                const funciones = await apiCall('/funciones');
+                const funcion = funciones.find(f => f.id == funcionId);
+                if (funcion) {
+                    pricePerSeat = Number(funcion.precio);
+                } else {
+                    alert('La función no está disponible.');
+                    return window.location.href = 'index.html';
+                }
+
+                const asientos = await apiCall(`/funciones/${funcionId}/asientos`);
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                document.getElementById('mapContainer').classList.remove('hidden');
+
+                const grid = document.getElementById('seatGrid');
+                
+                // Agrupar filas
+                const rows = {};
+                asientos.forEach(a => {
+                    if(!rows[a.fila]) rows[a.fila] = [];
+                    rows[a.fila].push(a);
+                });
+
+                Object.keys(rows).sort().forEach(fila => {
+                    const rowLabel = document.createElement('div');
+                    rowLabel.className = 'seat-row-label';
+                    rowLabel.innerText = fila;
+                    grid.appendChild(rowLabel);
+                    
+                    rows[fila].sort((a,b) => a.columna - b.columna).forEach(asiento => {
+                        const div = document.createElement('div');
+                        div.className = 'seat';
+                        div.dataset.id = asiento.id;
+                        div.title = `Fila ${asiento.fila} - Asiento ${asiento.columna}`;
+                        if(asiento.estado_funcion === 'ocupado') {
+                            div.classList.add('ocupado');
+                        } else {
+                            div.onclick = () => toggleSeat(div, asiento.id);
+                        }
+                        grid.appendChild(div);
+                    });
+                });
+
+            } catch (error) {
+                console.error(error);
+                alert('Hubo un error al cargar la sala.');
+            }
+        });
+
+        function toggleSeat(element, id) {
+            if(element.classList.contains('selected')) {
+                element.classList.remove('selected');
+                selectedSeats = selectedSeats.filter(sId => sId !== id);
+            } else {
+                element.classList.add('selected');
+                selectedSeats.push(id);
+            }
+            updateTotal();
+        }
+
+        function updateTotal() {
+            document.getElementById('selectedCount').innerText = selectedSeats.length;
+            document.getElementById('totalPrice').innerText = (selectedSeats.length * pricePerSeat).toFixed(2);
+            document.getElementById('btnPagar').disabled = selectedSeats.length === 0;
+        }
+
+        document.getElementById('btnPagar').addEventListener('click', async () => {
+            if(selectedSeats.length === 0) return;
+            
+            try {
+                const btn = document.getElementById('btnPagar');
+                btn.disabled = true;
+                btn.innerText = 'Procesando pago...';
+                
+                const response = await apiCall('/tiquetes', 'POST', {
+                    funcion_id: funcionId,
+                    asientos: selectedSeats,
+                    usuario_id: null
+                });
+                
+                document.getElementById('mapContainer').classList.add('hidden');
+                document.getElementById('ticketSuccess').classList.remove('hidden');
+                document.getElementById('ticketCode').innerText = response.tiquete.codigo;
+                
+            } catch(error) {
+                alert(error.message || 'Error al procesar la compra. Es posible que alguien más haya reservado el asiento.');
+                const btn = document.getElementById('btnPagar');
+                btn.disabled = false;
+                btn.innerText = 'Confirmar Compra';
+            }
+        });
+    </script>
+</body>
+</html>
