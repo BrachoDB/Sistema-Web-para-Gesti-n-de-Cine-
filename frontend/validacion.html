@@ -2,76 +2,101 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CineMax - Validación Tiquete</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .validation-wrapper {
+            max-width: 560px;
+            margin: 6rem auto;
+            animation: fadeInUp 0.6s ease-out;
+        }
+        .validation-card {
+            padding: 3.5rem;
+            text-align: center;
+        }
+        .validation-card h2 {
+            margin-bottom: 2rem;
+            font-family: 'Syne', sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            background: linear-gradient(135deg, #fff, var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .validation-card .form-control {
+            text-transform: uppercase;
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 4px;
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            height: 4rem;
+        }
+        .validation-result {
+            margin-top: 2rem;
+            font-size: 1.15rem;
+            padding: 2rem;
+            border-radius: var(--radius-md);
+            border: 1px solid transparent;
+            animation: fadeInUp 0.4s ease-out;
+            font-family: 'Outfit', sans-serif;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar">
         <a href="index.html" class="nav-brand">CineMax</a>
-        <div class="nav-links" id="navAuth">
-            <!-- Navigation will be updated by updateNavbarAuth() -->
-        </div>
+        <button class="nav-toggle" onclick="document.body.classList.toggle('nav-open')" aria-label="Menú">
+            <span></span><span></span><span></span>
+        </button>
+        <div class="nav-links" id="navAuth"></div>
     </nav>
-    <div class="container" style="max-width: 600px; margin-top: 4rem;">
-        <div class="glass-panel" style="padding: 3rem; text-align: center;">
-            <h2 style="margin-bottom: 2rem;">Validar Ingreso a Sala</h2>
-            <div class="form-group" style="text-align: left;">
-                <label>Código del Tiquete:</label>
-                <input type="text" id="codigoInput" class="form-control" placeholder="Ej: A1B2C3D4" style="text-transform: uppercase; font-size: 1.25rem; text-align: center; letter-spacing: 4px;">
-            </div>
-            <button id="btnValidar" class="btn btn-primary" style="width: 100%; font-size: 1.2rem; padding: 1rem;">Verificar Acceso</button>
-            <div id="resultado" style="margin-top: 2rem; font-size: 1.25rem; padding: 1.5rem; border-radius: 8px; border: 1px solid transparent;" class="hidden">
+    <div class="container">
+        <div class="validation-wrapper">
+            <div class="glass-panel validation-card">
+                <h2>Verificar Tiquete</h2>
+                <div class="form-group" style="text-align: left;">
+                    <label style="font-family: 'Outfit', sans-serif;">Código del Tiquete:</label>
+                    <input type="text" id="codigoInput" class="form-control" placeholder="X8Y1Z2A3">
+                </div>
+                <button id="btnValidar" class="btn btn-primary" style="width: 100%; font-size: 1.1rem; padding: 1.1rem; margin-top: 1rem;">Validar Entrada</button>
+                <div id="resultado" class="validation-result hidden"></div>
             </div>
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
-        // Actualizar navbar según estado de sesión
-        document.addEventListener('DOMContentLoaded', () => {
-            updateNavbarAuth();
-        });
+        document.addEventListener('DOMContentLoaded', () => updateNavbarAuth());
         
         document.getElementById('btnValidar').addEventListener('click', async () => {
             const codigo = document.getElementById('codigoInput').value.trim().toUpperCase();
-            if(!codigo) {
-                document.getElementById('codigoInput').focus();
-                return;
-            }
+            if(!codigo) return;
             
             const btn = document.getElementById('btnValidar');
-            btn.innerText = 'Verificando...';
-            btn.disabled = true;
+            btn.innerText = 'Verificando...'; btn.disabled = true;
 
             try {
                 const response = await apiCall('/tiquetes/validar', 'POST', { codigo });
                 const resDiv = document.getElementById('resultado');
-                resDiv.classList.remove('hidden', 'text-success', 'text-danger', 'text-muted');
+                resDiv.classList.remove('hidden', 'text-success', 'text-danger');
                 resDiv.style.borderColor = 'transparent';
                 
                 if(response.estado === 'Válido') {
-                    resDiv.innerHTML = '<h2>✅ ACCESO CONCEDIDO</h2><p>El tiquete es válido y ha sido marcado como usado.</p>';
-                    resDiv.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
-                    resDiv.style.borderColor = 'rgba(16, 185, 129, 0.4)';
-                    resDiv.classList.add('text-success');
-                } else if(response.estado === 'Usado') {
-                    resDiv.innerHTML = '<h2>❌ Tiquete Ya Usado</h2><p>Este tiquete ya fue validado anteriormente.</p>';
-                    resDiv.style.backgroundColor = 'rgba(245, 158, 11, 0.15)';
-                    resDiv.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-                    resDiv.style.color = '#f59e0b';
+                    resDiv.innerHTML = '<h3 style="font-family:Syne; margin-bottom:0.5rem;">ACCESO CONCEDIDO</h3><p>Tiquete verificado y marcado como usado.</p>';
+                    resDiv.style.backgroundColor = 'rgba(62, 201, 127, 0.08)';
+                    resDiv.style.borderColor = 'rgba(62, 201, 127, 0.2)';
+                    resDiv.className = 'validation-result text-success';
                 } else {
-                    resDiv.innerHTML = '<h2>🚫 Código Inválido</h2><p>No se encontró este código en el sistema.</p>';
-                    resDiv.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
-                    resDiv.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-                    resDiv.classList.add('text-danger');
+                    resDiv.innerHTML = `<h3 style="font-family:Syne; margin-bottom:0.5rem;">ACCESO DENEGADO</h3><p>${response.estado === 'Usado' ? 'Este tiquete ya fue utilizado.' : 'Código no encontrado.'}</p>`;
+                    resDiv.style.backgroundColor = 'rgba(229, 77, 95, 0.08)';
+                    resDiv.style.borderColor = 'rgba(229, 77, 95, 0.2)';
+                    resDiv.className = 'validation-result text-danger';
                 }
-            } catch (e) {
-                alert('Error al validar: ' + e.message);
-            } finally {
-                btn.innerText = 'Verificar Acceso';
-                btn.disabled = false;
-                document.getElementById('codigoInput').value = '';
-                document.getElementById('codigoInput').focus();
-            }
+            } catch (e) { alert('Error: ' + e.message); }
+            finally { btn.innerText = 'Validar Entrada'; btn.disabled = false; }
         });
     </script>
 </body>

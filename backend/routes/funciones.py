@@ -40,7 +40,7 @@ def get_funciones():
             # Join with peliculas to get the movie title
             # Use alias titulo_pelicula for frontend compatibility
             sql = """
-                SELECT f.*, p.titulo as titulo_pelicula, p.imagen_url, p.duracion 
+                SELECT f.*, p.titulo as titulo_pelicula, p.imagen_url, p.duracion, p.descripcion 
                 FROM funciones f 
                 JOIN peliculas p ON f.pelicula_id = p.id
                 WHERE f.estado IN ('disponible', 'cancelada')
@@ -65,7 +65,7 @@ def get_all_funciones():
         with conn.cursor() as cursor:
             # Get all functions regardless of estado for admin
             sql = """
-                SELECT f.*, p.titulo as titulo_pelicula, p.imagen_url, p.duracion 
+                SELECT f.*, p.titulo as titulo_pelicula, p.imagen_url, p.duracion, p.descripcion 
                 FROM funciones f 
                 JOIN peliculas p ON f.pelicula_id = p.id
                 ORDER BY f.fecha DESC, f.hora DESC

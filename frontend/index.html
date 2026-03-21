@@ -4,27 +4,99 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CineMax - Cartelera</title>
+    <meta name="description" content="CineMax — Vive la magia del cine con nuestra cartelera premium e interactiva.">
     <link rel="stylesheet" href="css/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ── Hero Section ── */
+        .hero {
+            position: relative;
+            padding: clamp(4rem, 10vw, 7rem) 0 clamp(2.5rem, 5vw, 4rem);
+            text-align: center;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 60% 45% at 50% 15%, rgba(212,168,83,0.07) 0%, transparent 65%),
+                radial-gradient(ellipse 40% 50% at 80% 85%, rgba(110,140,173,0.05) 0%, transparent 55%);
+            pointer-events: none;
+        }
+        .hero h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(2.5rem, 6vw, 4.2rem);
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #fff 25%, var(--accent) 75%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            line-height: 1.1;
+        }
+        .hero p {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--text-muted);
+            max-width: 480px;
+            margin: 0 auto;
+            font-weight: 300;
+            line-height: 1.6;
+        }
+
+        /* ── Footer ── */
+        .site-footer {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border-color);
+            margin-top: 2rem;
+        }
+        .site-footer a { color: var(--accent); }
+
+        /* ── Skeleton placeholders ── */
+        .skeleton-card {
+            border-radius: var(--radius-lg);
+            min-height: 320px;
+        }
+        .skeleton-card:first-child {
+            grid-column: span 2;
+            grid-row: span 2;
+            min-height: 500px;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar">
         <a href="index.html" class="nav-brand">CineMax</a>
+        <button class="nav-toggle" onclick="document.body.classList.toggle('nav-open')" aria-label="Menú">
+            <span></span><span></span><span></span>
+        </button>
         <div class="nav-links" id="navAuth">
             <!-- Navigation will be updated by updateNavbarAuth() -->
         </div>
     </nav>
 
     <div class="container">
-        <header class="text-center" style="margin: 3rem 0;">
-            <h1 style="font-size: 3.5rem; margin-bottom: 1rem; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; color: transparent;">Cartelera Disponible</h1>
-            <p class="text-muted" style="font-size: 1.2rem;">Vive la magia del cine interactivo y premium con nuestra selección.</p>
+        <header class="hero">
+            <h1>Cartelera Disponible</h1>
+            <p>Vive la magia del cine interactivo y premium con nuestra selección.</p>
         </header>
 
         <div id="moviesGrid" class="movies-grid">
-            <div class="text-center text-muted" style="grid-column: 1 / -1;">Cargando novedades...</div>
+            <!-- Skeleton loading placeholders (bento layout) -->
+            <div class="glass-panel skeleton skeleton-card"></div>
+            <div class="glass-panel skeleton skeleton-card"></div>
+            <div class="glass-panel skeleton skeleton-card"></div>
+            <div class="glass-panel skeleton skeleton-card"></div>
         </div>
     </div>
+
+    <footer class="site-footer">
+        <p>&copy; 2026 <a href="index.html">CineMax</a> — La mejor experiencia cinematográfica.</p>
+    </footer>
 
     <script src="js/app.js"></script>
     <script>
@@ -50,6 +122,7 @@
                             id: f.pelicula_id,
                             titulo: f.titulo_pelicula,
                             imagen_url: f.imagen_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80',
+                            descripcion: f.descripcion || '',
                             funciones: []
                         };
                     }
@@ -89,17 +162,23 @@
                         `;
                     }).join('');
 
+                    // Build synopsis text
+                    const sinopsisHtml = movie.descripcion 
+                        ? `<p class="movie-synopsis">${movie.descripcion}</p>` 
+                        : '';
+
                     card.innerHTML = `
                         <img src="${movie.imagen_url}" alt="${movie.titulo}" class="movie-img">
                         <div class="movie-info">
-                            <h3 class="movie-title" style="color: #fff;">${movie.titulo}</h3>
+                            <h3 class="movie-title">${movie.titulo}</h3>
+                            ${sinopsisHtml}
                             <div class="movie-meta">
                                 <span class="badge" style="color: ${hasActiveFunctions ? 'var(--success)' : 'var(--text-muted)'}; border: 1px solid ${hasActiveFunctions ? 'var(--success)' : 'rgba(255,255,255,0.1)'};">
-                                    ${hasActiveFunctions ? 'Funciones Disponibles' : 'Sin Funciones Próximas'}
+                                    ${hasActiveFunctions ? '● Disponible' : 'Sin Funciones'}
                                 </span>
                             </div>
                             <div style="margin-top:auto;">
-                                <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 0.5rem;">Horarios:</p>
+                                <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.4rem;">Horarios:</p>
                                 <div style="display:flex; flex-wrap:wrap;">
                                     ${functionsHtml}
                                 </div>
