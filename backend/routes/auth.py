@@ -42,7 +42,10 @@ def register():
             user_id = cursor.lastrowid
             
             # Crear token JWT
-            access_token = create_access_token(identity={'id': user_id, 'rol': 'cliente'})
+            access_token = create_access_token(
+                identity=str(user_id), 
+                additional_claims={'rol': 'cliente'}
+            )
             
             return jsonify({
                 'message': 'Usuario registrado exitosamente',
@@ -79,8 +82,10 @@ def login():
                 return jsonify({'error': 'Credenciales inválidas'}), 401
             
             # Crear token JWT con la identidad del usuario
-            identity = {'id': user['id'], 'rol': user['rol']}
-            access_token = create_access_token(identity=identity)
+            access_token = create_access_token(
+                identity=str(user['id']), 
+                additional_claims={'rol': user['rol']}
+            )
             
             return jsonify({
                 'message': 'Login exitoso',
@@ -98,8 +103,7 @@ def login():
 @jwt_required()
 def get_current_user():
     try:
-        identity = get_jwt_identity()
-        user_id = identity['id']
+        user_id = get_jwt_identity()
         
         conn = get_db_connection()
         try:
@@ -136,8 +140,7 @@ def change_password():
         return jsonify({'error': 'La nueva contraseña debe tener al menos 6 caracteres'}), 400
     
     try:
-        identity = get_jwt_identity()
-        user_id = identity['id']
+        user_id = get_jwt_identity()
         
         conn = get_db_connection()
         try:
@@ -177,8 +180,7 @@ def update_profile():
         return jsonify({'error': 'No se recibieron datos'}), 400
     
     try:
-        identity = get_jwt_identity()
-        user_id = identity['id']
+        user_id = get_jwt_identity()
         
         conn = get_db_connection()
         try:

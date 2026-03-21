@@ -29,7 +29,7 @@
                 <!-- Asientos inyectados via JS -->
             </div>
 
-            <div style="display: flex; justify-content: center; gap: 2rem; margin-top: 3rem;">
+            <div style="display: flex; justify-content: center; gap: 2rem; margin-top: 3rem; flex-wrap: wrap;">
                 <div style="display:flex; align-items:center; gap:0.5rem;">
                     <div class="seat" style="cursor:default; transform:none; border-color: rgba(255,255,255,0.2);"></div> <span>Disponible</span>
                 </div>
@@ -38,6 +38,9 @@
                 </div>
                 <div style="display:flex; align-items:center; gap:0.5rem;">
                     <div class="seat ocupado" style="cursor:default; transform:none;"></div> <span>Ocupado</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div class="seat mantenimiento" style="cursor:default; transform:none;"></div> <span>Mantenimiento</span>
                 </div>
             </div>
             
@@ -74,6 +77,7 @@
         
         // Obtener usuario logueado (si existe)
         let currentUser = null;
+        let esAdmin = false;
         
         if (!funcionId) {
             window.location.href = 'index.html';
@@ -85,13 +89,36 @@
             
             // Obtener usuario actual
             currentUser = getCurrentUser();
+            esAdmin = currentUser && currentUser.rol === 'admin';
             
             try {
-                // Truco para precio
-                const funciones = await apiCall('/funciones');
-                const funcion = funciones.find(f => f.id == funcionId);
+                // Si es admin, buscar función en /funciones/all (incluye canceladas/inactivas)
+                let funcion = null;
+                if (esAdmin) {
+                    const todasFunciones = await apiCall('/funciones/all');
+                    funcion = todasFunciones.find(f => f.id == funcionId);
+                } else {
+                    const funciones = await apiCall('/funciones');
+                    funcion = funciones.find(f => f.id == funcionId);
+                }
+
                 if (funcion) {
                     pricePerSeat = Number(funcion.precio);
+                    
+                    // Verificar si la función ya terminó
+                    const ahora = new Date();
+                    const inicio = new Date(`${funcion.fecha}T${funcion.hora}`);
+                    const fin = new Date(inicio.getTime() + (funcion.duracion || 120) * 60000);
+                    
+                    if (ahora > fin) {
+                        alert('Lo sentimos, esta función ya ha finalizado.');
+                        return window.location.href = 'index.html';
+                    }
+
+                    if (funcion.estado === 'cancelada') {
+                        alert('Lo sentimos, esta función ha sido cancelada.');
+                        return window.location.href = 'index.html';
+                    }
                 } else {
                     alert('La función no está disponible.');
                     return window.location.href = 'index.html';
@@ -100,6 +127,20 @@
                 const asientos = await apiCall(`/funciones/${funcionId}/asientos`);
                 document.getElementById('loadingOverlay').classList.add('hidden');
                 document.getElementById('mapContainer').classList.remove('hidden');
+
+                // Si el usuario es admin, mostrar aviso y bloquear compra
+                if (esAdmin) {
+                    const aviso = document.createElement('div');
+                    aviso.style.cssText = 'background: rgba(239,68,68,0.15); border: 1px solid var(--danger); border-radius: 10px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; text-align: center; color: #fca5a5;';
+                    aviso.innerHTML = '<strong>⚠️ Modo Administrador</strong> — Solo puedes visualizar los asientos. Para gestionar estados ve al <a href="admin.html" style="color: var(--primary);">Panel de Administración</a>.';
+                    document.getElementById('mapContainer').insertBefore(aviso, document.getElementById('mapContainer').firstChild);
+                    
+                    // Deshabilitar botón de compra permanentemente
+                    const btn = document.getElementById('btnPagar');
+                    btn.disabled = true;
+                    btn.style.opacity = '0.4';
+                    btn.title = 'Los administradores no pueden comprar tickets';
+                }
 
                 const grid = document.getElementById('seatGrid');
                 
@@ -121,10 +162,28 @@
                         div.className = 'seat';
                         div.dataset.id = asiento.id;
                         div.title = `Fila ${asiento.fila} - Asiento ${asiento.columna}`;
-                        if(asiento.estado_funcion === 'ocupado') {
+
+                        if (asiento.estado_funcion === 'mantenimiento') {
+                            div.classList.add('mantenimiento');
+                            div.title += ' - En mantenimiento';
+                            div.style.cursor = 'not-allowed';
+                        } else if (asiento.estado_funcion === 'ocupado') {
                             div.classList.add('ocupado');
+                            div.title += ' - Ocupado';
+                            div.style.cursor = 'not-allowed';
                         } else {
-                            div.onclick = () => toggleSeat(div, asiento.id);
+                            if (!esAdmin) {
+                                div.onclick = () => {
+                                    if (!isAuthenticated()) {
+                                        showToast('Debes iniciar sesión para seleccionar asientos', 'error');
+                                        return;
+                                    }
+                                    toggleSeat(div, asiento.id);
+                                };
+                            } else {
+                                div.style.cursor = 'default';
+                                div.title += ' - Disponible';
+                            }
                         }
                         grid.appendChild(div);
                     });
@@ -137,6 +196,7 @@
         });
 
         function toggleSeat(element, id) {
+            if (esAdmin) return;
             if(element.classList.contains('selected')) {
                 element.classList.remove('selected');
                 selectedSeats = selectedSeats.filter(sId => sId !== id);
@@ -150,11 +210,11 @@
         function updateTotal() {
             document.getElementById('selectedCount').innerText = selectedSeats.length;
             document.getElementById('totalPrice').innerText = (selectedSeats.length * pricePerSeat).toFixed(2);
-            document.getElementById('btnPagar').disabled = selectedSeats.length === 0;
+            document.getElementById('btnPagar').disabled = selectedSeats.length === 0 || esAdmin;
         }
 
         document.getElementById('btnPagar').addEventListener('click', async () => {
-            if(selectedSeats.length === 0) return;
+            if(selectedSeats.length === 0 || esAdmin) return;
             
             try {
                 const btn = document.getElementById('btnPagar');

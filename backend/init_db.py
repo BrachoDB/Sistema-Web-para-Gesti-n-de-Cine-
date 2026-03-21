@@ -58,7 +58,7 @@ def crear_tablas(cursor):
             numero INT NOT NULL,
             fila VARCHAR(5) NOT NULL,
             columna INT NOT NULL,
-            estado ENUM('activo', 'inactivo') DEFAULT 'activo'
+            estado ENUM('disponible', 'mantenimiento', 'ocupado', 'activo', 'inactivo') DEFAULT 'disponible'
         )
     """)
     
