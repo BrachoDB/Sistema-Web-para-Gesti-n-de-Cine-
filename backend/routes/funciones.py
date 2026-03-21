@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from db import get_db_connection
 
 funciones_bp = Blueprint('funciones', __name__)
@@ -9,8 +9,8 @@ def admin_required(fn):
     """Decorador para verificar que el usuario es administrador"""
     @jwt_required()
     def decorated_function(*args, **kwargs):
-        identity = get_jwt_identity()
-        if identity.get('rol') != 'admin':
+        claims = get_jwt()
+        if claims.get('rol') != 'admin':
             return jsonify({'error': 'Acceso no autorizado. Se requiere rol de administrador'}), 403
         return fn(*args, **kwargs)
     decorated_function.__name__ = fn.__name__
@@ -40,10 +40,11 @@ def get_funciones():
             # Join with peliculas to get the movie title
             # Use alias titulo_pelicula for frontend compatibility
             sql = """
-                SELECT f.*, p.titulo as titulo_pelicula, p.imagen_url 
+                SELECT f.*, p.titulo as titulo_pelicula, p.imagen_url, p.duracion 
                 FROM funciones f 
                 JOIN peliculas p ON f.pelicula_id = p.id
-                WHERE f.estado = 'disponible' AND p.estado = 'activa'
+                WHERE f.estado IN ('disponible', 'cancelada')
+                ORDER BY f.fecha ASC, f.hora ASC
             """
             cursor.execute(sql)
             result = cursor.fetchall()
@@ -64,7 +65,7 @@ def get_all_funciones():
         with conn.cursor() as cursor:
             # Get all functions regardless of estado for admin
             sql = """
-                SELECT f.*, p.titulo as titulo_pelicula, p.imagen_url 
+                SELECT f.*, p.titulo as titulo_pelicula, p.imagen_url, p.duracion 
                 FROM funciones f 
                 JOIN peliculas p ON f.pelicula_id = p.id
                 ORDER BY f.fecha DESC, f.hora DESC
@@ -84,10 +85,20 @@ def get_asientos_funcion(id):
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # Setup querying all seats and join to find which are occupied for this specific function
+            # Retorna el estado real del asiento:
+            # - 'ocupado' si hay un registro en detalle_tiquete O el asiento está marcado como 'ocupado'
+            # - 'mantenimiento' si el asiento tiene ese estado en la tabla asientos
+            # - 'disponible' en cualquier otro caso
+            # Agregamos 'is_sold' para que el frontend sepa si puede "Liberarlo"
             sql = """
                 SELECT a.*, 
-                CASE WHEN dt.id IS NOT NULL THEN 'ocupado' ELSE 'disponible' END as estado_funcion
+                CASE 
+                    WHEN dt.id IS NOT NULL THEN 'ocupado'
+                    WHEN a.estado = 'ocupado' THEN 'ocupado'
+                    WHEN a.estado = 'mantenimiento' THEN 'mantenimiento'
+                    ELSE 'disponible' 
+                END as estado_funcion,
+                CASE WHEN dt.id IS NOT NULL THEN 1 ELSE 0 END as is_sold
                 FROM asientos a
                 LEFT JOIN detalle_tiquete dt ON a.id = dt.asiento_id AND dt.funcion_id = %s
             """
@@ -103,10 +114,11 @@ def get_asientos_funcion(id):
 def update_asiento_estado(funcion_id, asiento_id):
     """Admin endpoint to update seat status for a specific function"""
     data = request.json
-    nuevo_estado = data.get('estado')  # 'disponible', 'ocupado', 'mantenimiento'
+    nuevo_estado = data.get('estado')  # 'disponible', 'mantenimiento', 'ocupado'
+    liberar_vendido = data.get('liberar_vendido', False)
     
-    if nuevo_estado not in ['disponible', 'ocupado', 'mantenimiento']:
-        return jsonify({"error": "Estado inválido. Use: disponible, ocupado, o mantenimiento"}), 400
+    if nuevo_estado not in ['disponible', 'mantenimiento', 'ocupado']:
+        return jsonify({"error": "Estado inválido. Use: disponible, mantenimiento o ocupado"}), 400
     
     conn = get_db_connection()
     try:
@@ -117,48 +129,40 @@ def update_asiento_estado(funcion_id, asiento_id):
                 return jsonify({"error": "Función no encontrada"}), 404
             
             # Verificar que el asiento existe
-            cursor.execute("SELECT id FROM asientos WHERE id = %s", (asiento_id,))
-            if not cursor.fetchone():
+            cursor.execute("SELECT id, estado FROM asientos WHERE id = %s", (asiento_id,))
+            asiento = cursor.fetchone()
+            if not asiento:
                 return jsonify({"error": "Asiento no encontrado"}), 404
             
-            # Si el estado es 'ocupado', crear un registro en detalle_tiquete
-            if nuevo_estado == 'ocupado':
-                # Crear un tiquete de "mantenimiento" para el admin
-                import uuid
-                codigo = f"ADM-{str(uuid.uuid4())[:6].upper()}"
-                cursor.execute("""
-                    INSERT INTO tiquetes (codigo, usuario_id, funcion_id, total, estado)
-                    VALUES (%s, NULL, %s, 0, 'usado')
-                """, (codigo, funcion_id))
-                tiquete_id = cursor.lastrowid
-                
-                # Marcar el asiento como ocupado
-                cursor.execute("""
-                    INSERT INTO detalle_tiquete (tiquete_id, funcion_id, asiento_id, precio_unitario)
-                    VALUES (%s, %s, %s, 0)
-                """, (tiquete_id, funcion_id, asiento_id))
+            # Verificar si está vendido
+            cursor.execute("""
+                SELECT id FROM detalle_tiquete 
+                WHERE funcion_id = %s AND asiento_id = %s
+            """, (funcion_id, asiento_id))
+            detalle = cursor.fetchone()
             
-            # Si el estado es 'disponible' o 'mantenimiento', liberar el asiento
-            elif nuevo_estado in ['disponible', 'mantenimiento']:
-                # Eliminar cualquier reserva existente
-                cursor.execute("""
-                    DELETE FROM detalle_tiquete 
-                    WHERE funcion_id = %s AND asiento_id = %s
-                """, (funcion_id, asiento_id))
-                
-                # También eliminar tiquetes huérfanos (total 0 y estado usado)
-                cursor.execute("""
-                    DELETE FROM tiquetes 
-                    WHERE funcion_id = %s AND total = 0 AND estado = 'usado'
-                    AND id NOT IN (SELECT DISTINCT tiquete_id FROM detalle_tiquete)
-                """, (funcion_id,))
+            if detalle:
+                if liberar_vendido:
+                    # Liberar asiento vendido (eliminar detalle)
+                    # NOTA: Esto no ajusta el 'total' del tiquete padre, 
+                    # en un sistema real se debería manejar una nota de crédito o devolución.
+                    cursor.execute("DELETE FROM detalle_tiquete WHERE id = %s", (detalle['id'],))
+                    print(f"DEBUG - Asiento {asiento_id} liberado (venta eliminada) en funcion {funcion_id}")
+                else:
+                    return jsonify({"error": "No se puede cambiar el estado: el asiento está vendido. Use 'liberar_vendido: true' para forzar."}), 400
+            
+            # Actualizar el estado del asiento directamente en la tabla asientos
+            cursor.execute("""
+                UPDATE asientos SET estado = %s WHERE id = %s
+            """, (nuevo_estado, asiento_id))
             
             conn.commit()
             return jsonify({
                 "message": f"Asiento actualizado a '{nuevo_estado}'",
                 "asiento_id": asiento_id,
                 "funcion_id": funcion_id,
-                "estado": nuevo_estado
+                "estado": nuevo_estado,
+                "liberado": liberar_vendido if detalle else False
             }), 200
             
     except Exception as e:
@@ -299,23 +303,19 @@ def delete_funcion(id):
             if funcion['estado'] == 'cancelada':
                 return jsonify({"error": "La funcion ya esta cancelada"}), 400
             
-            # Verificar si hay tiquetes comprados (no permitir cancelar si hay ventas)
+            # Verificar si hay tiquetes comprados (no permitir eliminar si hay ventas)
             cursor.execute("""
                 SELECT id FROM detalle_tiquete 
                 WHERE funcion_id = %s
             """, (id,))
             if cursor.fetchone():
-                return jsonify({"error": "No se puede cancelar la funcion porque ya hay tiquetes vendidos"}), 400
+                return jsonify({"error": "No se puede eliminar la funcion porque ya hay tiquetes vendidos. Se recomienda cancelarla."}), 400
             
-            # Cambiar estado a cancelada (no eliminar físicamente)
-            cursor.execute("""
-                UPDATE funciones 
-                SET estado = 'cancelada' 
-                WHERE id = %s
-            """, (id,))
+            # Eliminar físicamente
+            cursor.execute("DELETE FROM funciones WHERE id = %s", (id,))
             conn.commit()
             
-            return jsonify({"message": "Funcion cancelada correctamente"}), 200
+            return jsonify({"message": "Funcion eliminada correctamente"}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500

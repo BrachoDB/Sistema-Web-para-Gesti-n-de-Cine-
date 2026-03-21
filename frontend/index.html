@@ -48,7 +48,7 @@
                     if(!moviesMap[f.pelicula_id]) {
                         moviesMap[f.pelicula_id] = {
                             id: f.pelicula_id,
-                            titulo: f.titulo,
+                            titulo: f.titulo_pelicula,
                             imagen_url: f.imagen_url || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80',
                             funciones: []
                         };
@@ -60,23 +60,49 @@
                     const card = document.createElement('div');
                     card.className = 'glass-panel movie-card';
                     
-                    let functionsHtml = movie.funciones.map(f => `
-                        <button class="btn btn-primary" style="margin-right:0.5rem; margin-bottom:0.5rem; font-size: 0.85rem;" 
-                                onclick="window.location.href='compra.html?funcion_id=${f.id}'">
-                            ${formatDate(f.fecha).split(',')[0]} - ${f.hora.substring(0,5)} <br> <span style="font-weight:normal; font-size:0.75rem;">$${Number(f.precio)}</span>
-                        </button>
-                    `).join('');
+                    const ahora = new Date();
+                    let hasActiveFunctions = false;
+
+                    const functionsHtml = movie.funciones.map(f => {
+                        const inicio = new Date(`${f.fecha}T${f.hora}`);
+                        const fin = new Date(inicio.getTime() + (f.duracion || 120) * 60000);
+                        const isFinalizada = ahora > fin;
+                        const isCancelada = f.estado === 'cancelada';
+                        const isDisabled = isFinalizada || isCancelada;
+                        
+                        if (!isDisabled && f.estado === 'disponible') {
+                            hasActiveFunctions = true;
+                        }
+
+                        let statusText = '';
+                        if (isCancelada) statusText = '<br>(Cancelada)';
+                        else if (isFinalizada) statusText = '<br>(Finalizada)';
+                        else statusText = `<br><span style="font-weight:normal; font-size:0.75rem;">$${Number(f.precio)}</span>`;
+
+                        return `
+                            <button class="btn ${isDisabled ? '' : 'btn-primary'}" 
+                                    style="margin-right:0.5rem; margin-bottom:0.5rem; font-size: 0.85rem; ${isDisabled ? 'background:rgba(255,255,255,0.05); color:var(--text-muted); cursor:not-allowed; border:1px solid rgba(255,255,255,0.1);' : ''}" 
+                                    ${isDisabled ? 'disabled' : `onclick="window.location.href='compra.html?funcion_id=${f.id}'"`}>
+                                ${formatDate(f.fecha)} - ${f.hora.substring(0,5)} 
+                                ${statusText}
+                            </button>
+                        `;
+                    }).join('');
 
                     card.innerHTML = `
                         <img src="${movie.imagen_url}" alt="${movie.titulo}" class="movie-img">
                         <div class="movie-info">
                             <h3 class="movie-title" style="color: #fff;">${movie.titulo}</h3>
                             <div class="movie-meta">
-                                <span class="badge" style="color: var(--success); border: 1px solid var(--success);">Funciones Disponibles</span>
+                                <span class="badge" style="color: ${hasActiveFunctions ? 'var(--success)' : 'var(--text-muted)'}; border: 1px solid ${hasActiveFunctions ? 'var(--success)' : 'rgba(255,255,255,0.1)'};">
+                                    ${hasActiveFunctions ? 'Funciones Disponibles' : 'Sin Funciones Próximas'}
+                                </span>
                             </div>
                             <div style="margin-top:auto;">
                                 <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 0.5rem;">Horarios:</p>
-                                ${functionsHtml}
+                                <div style="display:flex; flex-wrap:wrap;">
+                                    ${functionsHtml}
+                                </div>
                             </div>
                         </div>
                     `;

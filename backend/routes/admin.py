@@ -15,13 +15,13 @@ def get_dashboard():
             
             # Ocupacion por funcion
             cursor.execute("""
-                SELECT f.id, p.titulo, f.fecha, f.hora, 
+                SELECT f.id, p.titulo, f.fecha, f.hora, p.duracion,
                        COUNT(dt.id) as asientos_ocupados,
                        150 as capacidad_total
                 FROM funciones f
                 JOIN peliculas p ON f.pelicula_id = p.id
                 LEFT JOIN detalle_tiquete dt ON f.id = dt.funcion_id
-                GROUP BY f.id, p.titulo, f.fecha, f.hora
+                GROUP BY f.id, p.titulo, f.fecha, f.hora, p.duracion
                 ORDER BY f.fecha DESC, f.hora DESC
             """)
             ocupacion = cursor.fetchall()
@@ -53,26 +53,49 @@ def get_ventas_por_dia():
             # Reporte de ventas agrupadas por fecha
             sql = """
                 SELECT 
-                    DATE(fecha_compra) as fecha,
-                    COUNT(*) as cantidad_tiquetes,
-                    SUM(total) as total_ventas
-                FROM tiquetes
-                WHERE estado != 'invalido'
-                GROUP BY DATE(fecha_compra)
-                ORDER BY fecha DESC
+                    DATE(t.fecha_compra) as fecha,
+                    (
+                        SELECT COUNT(dt.id) 
+                        FROM detalle_tiquete dt 
+                        WHERE dt.tiquete_id = t.id
+                    ) as asientos_por_transaccion,
+                    t.total as total_transaccion,
+                    f.precio as precio_funcion
+                FROM tiquetes t
+                JOIN funciones f ON t.funcion_id = f.id
+                WHERE t.estado != 'invalido'
             """
             cursor.execute(sql)
-            resultados = cursor.fetchall()
+            transacciones = cursor.fetchall()
             
-            # Convertir fechas a string para JSON
+            # Agrupar por fecha en Python para evitar problemas de agrupación en MySQL
+            ventas_dict = {}
+            for t in transacciones:
+                fecha_str = t["fecha"].strftime("%Y-%m-%d") if t["fecha"] else None
+                if not fecha_str:
+                    continue
+                    
+                if fecha_str not in ventas_dict:
+                    ventas_dict[fecha_str] = {"cantidad_tiquetes": 0, "total_ventas": 0.0}
+                
+                asientos = t["asientos_por_transaccion"]
+                if not asientos or asientos == 0:
+                    # Fallback por si la compra no guardó los detalles
+                    if t["precio_funcion"] and t["precio_funcion"] > 0:
+                        asientos = int(float(t["total_transaccion"]) / float(t["precio_funcion"]))
+                    else:
+                        asientos = 1
+                    
+                ventas_dict[fecha_str]["cantidad_tiquetes"] += asientos
+                ventas_dict[fecha_str]["total_ventas"] += float(t["total_transaccion"]) if t["total_transaccion"] else 0.0
+                
             ventas_por_dia = []
-            for row in resultados:
+            for fecha, datos in sorted(ventas_dict.items(), key=lambda x: x[0], reverse=True):
                 ventas_por_dia.append({
-                    "fecha": row["fecha"].strftime("%Y-%m-%d") if row["fecha"] else None,
-                    "cantidad_tiquetes": row["cantidad_tiquetes"],
-                    "total_ventas": float(row["total_ventas"]) if row["total_ventas"] else 0.0
+                    "fecha": fecha,
+                    "cantidad_tiquetes": datos["cantidad_tiquetes"],
+                    "total_ventas": datos["total_ventas"]
                 })
-            
             return jsonify(ventas_por_dia), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -90,12 +113,18 @@ def get_peliculas_mas_vistas():
                     p.id,
                     p.titulo,
                     p.genero,
-                    COUNT(dt.id) as cantidad_tiquetes,
+                    COUNT(DISTINCT f.id) as cantidad_funciones,
+                    SUM(
+                        CASE 
+                            WHEN (SELECT COUNT(id) FROM detalle_tiquete WHERE tiquete_id = t.id) > 0 
+                            THEN (SELECT COUNT(id) FROM detalle_tiquete WHERE tiquete_id = t.id)
+                            ELSE t.total / f.precio
+                        END
+                    ) as cantidad_tiquetes,
                     SUM(t.total) as total_recaudado
                 FROM peliculas p
                 JOIN funciones f ON p.id = f.pelicula_id
-                JOIN detalle_tiquete dt ON f.id = dt.funcion_id
-                JOIN tiquetes t ON dt.tiquete_id = t.id
+                JOIN tiquetes t ON t.funcion_id = f.id
                 WHERE t.estado != 'invalido'
                 GROUP BY p.id, p.titulo, p.genero
                 ORDER BY cantidad_tiquetes DESC
@@ -111,6 +140,7 @@ def get_peliculas_mas_vistas():
                     "id": row["id"],
                     "titulo": row["titulo"],
                     "genero": row["genero"],
+                    "cantidad_funciones": row["cantidad_funciones"],
                     "cantidad_tiquetes": row["cantidad_tiquetes"],
                     "total_recaudado": float(row["total_recaudado"]) if row["total_recaudado"] else 0.0
                 })

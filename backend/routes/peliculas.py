@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from db import get_db_connection
 
 peliculas_bp = Blueprint('peliculas', __name__)
@@ -10,9 +10,9 @@ def admin_required(fn):
     @jwt_required()
     def decorated_function(*args, **kwargs):
         try:
-            identity = get_jwt_identity()
-            print(f"DEBUG - Identity: {identity}")  # Log para debug
-            if not identity or identity.get('rol') != 'admin':
+            claims = get_jwt()
+            print(f"DEBUG - Claims: {claims}")  # Log para debug
+            if not claims or claims.get('rol') != 'admin':
                 return jsonify({'error': 'Acceso no autorizado. Se requiere rol de administrador'}), 403
             return fn(*args, **kwargs)
         except Exception as e:

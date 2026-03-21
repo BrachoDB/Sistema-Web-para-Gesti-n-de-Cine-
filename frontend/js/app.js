@@ -55,9 +55,9 @@ async function apiCall(endpoint, method = 'GET', body = null) {
         const data = await response.json();
         
         // Si el token es inválido, cerrar sesión
-        if (response.status === 401 && data.error && data.error.includes('token')) {
+        if ((response.status === 401 || response.status === 422) && data.error && data.error.toLowerCase().includes('token')) {
             logout();
-            throw new Error('Sesión expirada');
+            throw new Error('Sesión expirada, por favor inicie sesión nuevamente');
         }
         
         if (!response.ok) {
@@ -71,8 +71,14 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 }
 
 function formatDate(dateStr) {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    if (!dateStr) return '';
+    // Fix for YYYY-MM-DD strings being treated as UTC by some browsers
+    const d = new Date(dateStr.replace(/-/g, '/'));
+    return d.toLocaleDateString('es-ES', { 
+        weekday: 'short', 
+        day: '2-digit', 
+        month: 'short' 
+    }).replace('.', '');
 }
 
 // UI Helpers

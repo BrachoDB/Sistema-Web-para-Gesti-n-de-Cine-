@@ -451,7 +451,7 @@
                 funciones.forEach(f => {
                     const fecha = new Date(f.fecha).toLocaleDateString('es-CO');
                     const hora = f.hora ? f.hora.substring(0, 5) : '';
-                    select.innerHTML += `<option value="${f.id}">${f.titulo} - ${fecha} ${hora}</option>`;
+                    select.innerHTML += `<option value="${f.id}">${f.titulo_pelicula} - ${fecha} ${hora}</option>`;
                 });
             } catch (error) {
                 console.error('Error cargando funciones:', error);
@@ -497,18 +497,41 @@
                     rows[fila].sort((a, b) => a.columna - b.columna).forEach(asiento => {
                         const div = document.createElement('div');
                         div.className = 'seat';
-                        div.title = `Fila ${asiento.fila} - Asiento ${asiento.columna} (Clic para cambiar estado)`;
                         div.dataset.id = asiento.id;
                         div.dataset.funcion = funcionId;
+                        div.dataset.sold = asiento.is_sold; // 1 si esta vendido (en detalle_tiquete)
                         
-                        // Determinar clase según estado
+                        // Determinar clase y comportamiento según estado
                         if (asiento.estado_funcion === 'ocupado') {
                             div.classList.add('ocupado');
-                            div.title += ' - Occupied';
-                        } else {
-                            // Disponible - clic para cambiar a mantenimiento
+                            const label = asiento.is_sold ? 'Vendido (Real)' : 'Bloqueado (Admin)';
+                            div.title = `Fila ${asiento.fila} - Asiento ${asiento.columna} [${label}]`;
+                            
                             div.onclick = () => {
-                                if (confirm('¿Cambiar a estado Mantenimiento?')) {
+                                if (asiento.is_sold) {
+                                    if (confirm('Este asiento tiene una VENTA REAL. ¿Deseas LIBERARLO? (Se eliminará el registro de la venta)')) {
+                                        cambiarEstadoAsiento(funcionId, asiento.id, 'disponible', true);
+                                    }
+                                } else {
+                                    // Bloqueado manualmente - pasar a disponible
+                                    if (confirm('¿Liberar este asiento bloqueado?')) {
+                                        cambiarEstadoAsiento(funcionId, asiento.id, 'disponible');
+                                    }
+                                }
+                            };
+                        } else if (asiento.estado_funcion === 'mantenimiento') {
+                            div.classList.add('mantenimiento');
+                            div.title = `Fila ${asiento.fila} - Asiento ${asiento.columna} [Mantenimiento]`;
+                            div.onclick = () => {
+                                if (confirm('¿Cambiar de Mantenimiento a Ocupado (Bloqueado)?')) {
+                                    cambiarEstadoAsiento(funcionId, asiento.id, 'ocupado');
+                                }
+                            };
+                        } else {
+                            // Disponible
+                            div.title = `Fila ${asiento.fila} - Asiento ${asiento.columna} [Disponible]`;
+                            div.onclick = () => {
+                                if (confirm('¿Poner este asiento en Mantenimiento?')) {
                                     cambiarEstadoAsiento(funcionId, asiento.id, 'mantenimiento');
                                 }
                             };
@@ -517,19 +540,6 @@
                         grid.appendChild(div);
                     });
                 });
-                
-                // Añadir listener para asientos de mantenimiento (clic para liberar)
-                setTimeout(() => {
-                    document.querySelectorAll('#asientos-grid .seat').forEach(seat => {
-                        seat.addEventListener('dblclick', function() {
-                            const id = this.dataset.id;
-                            if (confirm('¿Liberar este asiento (cambiar a disponible)?')) {
-                                cambiarEstadoAsiento(funcionId, id, 'disponible');
-                            }
-                        });
-                    });
-                }, 100);
-                
             } catch (error) {
                 loading.innerText = 'Error al cargar asientos';
                 console.error(error);
@@ -537,24 +547,18 @@
         }
         
         // Cambiar estado de un asiento
-        async function cambiarEstadoAsiento(funcionId, asientoId, nuevoEstado) {
+        async function cambiarEstadoAsiento(funcionId, asientoId, nuevoEstado, liberarVendido = false) {
             try {
-                const response = await fetch(`http://localhost:5000/api/funciones/${funcionId}/asientos/${asientoId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ estado: nuevoEstado })
+                // Usar apiCall para consistencia y manejo automático de URL/tokens
+                await apiCall(`/funciones/${funcionId}/asientos/${asientoId}`, 'PUT', { 
+                    estado: nuevoEstado,
+                    liberar_vendido: liberarVendido
                 });
                 
-                const result = await response.json();
-                
-                if (response.ok) {
-                    showToast('Estado actualizado: ' + nuevoEstado, 'success');
-                    cargarAsientos(); // Recargar el mapa
-                } else {
-                    showToast(result.error || 'Error al actualizar', 'error');
-                }
+                showToast(liberarVendido ? 'Venta eliminada y asiento liberado' : 'Estado actualizado: ' + nuevoEstado, 'success');
+                cargarAsientos(); // Recargar el mapa
             } catch (error) {
-                showToast('Error de conexión', 'error');
+                showToast(error.message || 'Error al actualizar', 'error');
                 console.error(error);
             }
         }
@@ -628,24 +632,38 @@
                 data.ocupacion.forEach(row => {
                     const ocupacionPct = Math.round((row.asientos_ocupados / row.capacidad_total) * 100);
                     const isFull = ocupacionPct === 100;
+                    
+                    // Calcular si la función ya terminó
+                    const ahora = new Date();
+                    const inicio = new Date(`${row.fecha}T${row.hora}`);
+                    const fin = new Date(inicio.getTime() + (row.duracion || 120) * 60000);
+                    const isFinalizada = ahora > fin;
+                    
+                    let statusBadge = '';
+                    if (isFinalizada) {
+                        statusBadge = '<span class="badge" style="background:var(--text-muted); border:1px solid var(--text-muted);">Finalizada</span>';
+                    } else if (isFull) {
+                        statusBadge = '<span class="badge" style="background:var(--danger); border:1px solid var(--danger);">Agotada</span>';
+                    } else if (ocupacionPct > 80) {
+                        statusBadge = '<span class="badge" style="background:var(--secondary); border:1px solid var(--secondary);">Alta Demanda</span>';
+                    } else {
+                        statusBadge = '<span class="badge" style="background:var(--success); border:1px solid var(--success);">Disponible</span>';
+                    }
+
                     tbody.innerHTML += `
                         <tr>
                             <td><strong class="text-primary">${row.titulo}</strong></td>
-                            <td>${formatDate(row.fecha).split(',')[0]}</td>
+                            <td>${formatDate(row.fecha)}</td>
                             <td>${row.hora.substring(0,5)}</td>
                             <td style="min-width: 200px;">
                                 <div style="display:flex; align-items:center; gap:10px;">
                                     <div style="flex-grow:1; background:rgba(255,255,255,0.1); height:10px; border-radius:5px; overflow:hidden;">
-                                        <div style="width:${ocupacionPct}%; background:${isFull ? 'var(--danger)' : 'var(--primary)'}; height:100%; transition: width 0.5s;"></div>
+                                        <div style="width:${ocupacionPct}%; background:${isFinalizada ? 'var(--text-muted)' : (isFull ? 'var(--danger)' : 'var(--primary)')}; height:100%; transition: width 0.5s;"></div>
                                     </div>
                                     <span style="font-size:0.85rem; font-weight:600;">${row.asientos_ocupados}/${row.capacidad_total}</span>
                                 </div>
                             </td>
-                            <td>
-                                ${isFull ? '<span class="badge" style="background:var(--danger); border:1px solid var(--danger);">Agotada</span>' : 
-                                  ocupacionPct > 80 ? '<span class="badge" style="background:var(--secondary); border:1px solid var(--secondary);">Alta Demanda</span>' :
-                                  '<span class="badge" style="background:var(--success); border:1px solid var(--success);">Disponible</span>'}
-                            </td>
+                            <td>${statusBadge}</td>
                         </tr>
                     `;
                 });
@@ -810,23 +828,40 @@
 
                 tbody.innerHTML = '';
                 funciones.forEach(f => {
+                    // Calcular si la función ya terminó
+                    const ahora = new Date();
+                    const inicio = new Date(`${f.fecha}T${f.hora}`);
+                    const fin = new Date(inicio.getTime() + (f.duracion || 120) * 60000);
+                    const isFinalizada = ahora > fin;
+                    
                     const isDisponible = f.estado === 'disponible';
+                    let statusLabel = '';
+                    let statusStyle = '';
+                    
+                    if (isFinalizada) {
+                        statusLabel = 'Finalizada';
+                        statusStyle = 'color: var(--text-muted);';
+                    } else if (isDisponible) {
+                        statusLabel = 'Disponible';
+                        statusStyle = 'color: var(--success);';
+                    } else {
+                        statusLabel = 'Cancelada';
+                        statusStyle = 'color: var(--danger);';
+                    }
+
                     tbody.innerHTML += `
                         <tr>
                             <td><strong>${f.titulo_pelicula}</strong></td>
-                            <td>${f.fecha}</td>
+                            <td>${formatDate(f.fecha)}</td>
                             <td>${f.hora.substring(0,5)}</td>
-                            <td>$${parseFloat(f.precio).toFixed(2)}</td>
+                            <td>$${Number(f.precio).toFixed(2)}</td>
+                            <td style="font-weight:bold; ${statusStyle}">${statusLabel}</td>
                             <td>
-                                <span class="badge" style="background:${isDisponible ? 'var(--success)' : 'var(--danger)'};">
-                                    ${isDisponible ? 'Disponible' : 'Cancelada'}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="table-actions">
-                                    ${isDisponible ? `<button class="btn btn-sm btn-primary" onclick="editarFuncion(${f.id}, '${f.pelicula_id}', '${f.fecha}', '${f.hora}', ${f.precio})">Editar</button>` : ''}
-                                    ${isDisponible ? `<button class="btn btn-sm btn-danger" onclick="cancelarFuncion(${f.id}, '${f.titulo_pelicula}')">Cancelar</button>` : ''}
-                                </div>
+                                ${isFinalizada ? '' : (isDisponible 
+                                    ? `<button class="btn btn-sm btn-danger" onclick="cambiarEstadoFuncion(${f.id}, 'cancelada', '${f.titulo_pelicula}')">Cancelar</button>`
+                                    : `<button class="btn btn-sm btn-success" onclick="cambiarEstadoFuncion(${f.id}, 'disponible', '${f.titulo_pelicula}')">Reactivar</button>`)
+                                }
+                                <button class="btn btn-sm btn-primary" onclick="eliminarFuncion(${f.id}, '${f.titulo_pelicula}')" style="margin-left:5px;">Eliminar</button>
                             </td>
                         </tr>
                     `;
@@ -861,19 +896,39 @@
             document.getElementById('btn-funcion-cancel').style.display = 'none';
         }
 
-        function cancelarFuncion(id, titulo) {
+        function cambiarEstadoFuncion(id, nuevoEstado, titulo) {
+            const accion = nuevoEstado === 'cancelada' ? 'cancelar' : 'reactivar';
             showModal(
-                'Cancelar Función',
-                `¿Está seguro de cancelar la función de "${titulo}"?`,
-                'Cancelar Función',
+                `${accion.charAt(0).toUpperCase() + accion.slice(1)} Función`,
+                `¿Está seguro de ${accion} la función de "${titulo}"?`,
+                `${accion.charAt(0).toUpperCase() + accion.slice(1)} Función`,
                 async () => {
                     try {
-                        await apiCall(`/funciones/${id}`, 'DELETE');
-                        showToast('Función cancelada correctamente', 'success');
+                        const body = { estado: nuevoEstado };
+                        await apiCall(`/funciones/${id}`, 'PUT', body);
+                        showToast(`Función ${nuevoEstado} correctamente`, 'success');
                         loadFunciones();
                         loadDashboard();
                     } catch (err) {
-                        showToast('Error al cancelar función: ' + err.message, 'error');
+                        showToast(`Error al ${accion} función: ` + err.message, 'error');
+                    }
+                }
+            );
+        }
+
+        function eliminarFuncion(id, titulo) {
+            showModal(
+                'Eliminar Función',
+                `¿Está seguro de ELIMINAR permanentemente la función de "${titulo}"? Esta acción no se puede deshacer y solo es permitida si no hay ventas.`,
+                'Eliminar Función',
+                async () => {
+                    try {
+                        await apiCall(`/funciones/${id}`, 'DELETE');
+                        showToast('Función eliminada correctamente', 'success');
+                        loadFunciones();
+                        loadDashboard();
+                    } catch (err) {
+                        showToast('Error al eliminar función: ' + err.message, 'error');
                     }
                 }
             );
@@ -937,7 +992,7 @@
                         <tr>
                             <td>${row.fecha}</td>
                             <td><strong>$${parseFloat(row.total_ventas).toFixed(2)}</strong></td>
-                            <td>${row.cantidad} tiquetes</td>
+                            <td>${row.cantidad_tiquetes} tiquetes</td>
                         </tr>
                     `;
                 });
@@ -970,7 +1025,7 @@
                             <td><span class="badge" style="background:${index === 0 ? 'var(--gold, #ffd700)' : 'var(--secondary)'};">${index + 1}</span></td>
                             <td><strong>${row.titulo}</strong></td>
                             <td>${row.cantidad_funciones}</td>
-                            <td><strong>${row.tiquetes_vendidos}</strong></td>
+                            <td><strong>${row.cantidad_tiquetes}</strong></td>
                         </tr>
                     `;
                 });
