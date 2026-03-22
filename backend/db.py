@@ -8,5 +8,7 @@ def get_db_connection():
         user=config.MYSQL_USER,
         password=config.MYSQL_PASSWORD,
         database=config.MYSQL_DB,
+        port=config.MYSQL_PORT,
+        ssl={'ssl_mode': 'REQUIRED'},
         cursorclass=pymysql.cursors.DictCursor
     )
