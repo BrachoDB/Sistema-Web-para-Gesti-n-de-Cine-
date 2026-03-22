@@ -1,6 +1,12 @@
+import os
+import sys
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+
+# Asegurar que el directorio 'backend' esté en el path para Vercel
+sys.path.append(os.path.dirname(__file__))
+
 from config import Config
 
 def create_app():
