@@ -30,9 +30,9 @@ def get_dashboard():
             ocupacion_serializada = []
             for row in ocupacion:
                 row_dict = dict(row)
-                if row_dict.get('hora'):
+                if row_dict.get('hora') is not None:
                     row_dict['hora'] = str(row_dict['hora'])
-                if row_dict.get('fecha'):
+                if row_dict.get('fecha') is not None:
                     row_dict['fecha'] = str(row_dict['fecha'])
                 ocupacion_serializada.append(row_dict)
             

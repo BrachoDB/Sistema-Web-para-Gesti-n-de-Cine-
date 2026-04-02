@@ -250,9 +250,19 @@
                                 <input type="time" id="f_hora" class="form-control" required>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label>Precio Unitario ($)</label>
-                            <input type="number" step="0.01" id="f_precio" class="form-control" required min="0">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+                            <div class="form-group">
+                                <label>Precio Unitario ($)</label>
+                                <input type="number" step="0.01" id="f_precio" class="form-control" required min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Sala de Proyección</label>
+                                <select id="f_sala" class="form-control" required>
+                                    <option value="Sala 1">Sala 1</option>
+                                    <option value="Sala 2">Sala 2</option>
+                                    <option value="Sala 3">Sala 3</option>
+                                </select>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 1rem; margin-top: 1rem;">
                             <button type="submit" class="btn btn-primary" style="flex: 1;" id="btn-funcion-submit">Agendar Función</button>
@@ -286,6 +296,7 @@
                             <tr>
                                 <th>Título</th>
                                 <th>Fecha/Hora</th>
+                                <th>Sala</th>
                                 <th>Precio</th>
                                 <th>Status</th>
                                 <th>Acciones</th>
@@ -325,6 +336,14 @@
                     <h3 class="panel-header">Tendencia: Top 5 Películas</h3>
                     <div class="table-responsive" id="tblPeliculasVistasContainer">
                         <table id="tblPeliculasVistas"></table>
+                    </div>
+                </div>
+
+                <!-- Ocupación por Función movida abajo y a ancho completo -->
+                <div class="glass-panel" style="padding: 2rem; grid-column: 1 / -1;">
+                    <h3 class="panel-header">Ocupación por Función</h3>
+                    <div class="table-responsive" id="tblOcupacionContainer">
+                        <table id="tblOcupacion"></table>
                     </div>
                 </div>
             </div>
@@ -449,6 +468,7 @@
                 document.getElementById('f_fecha').value = f.fecha;
                 document.getElementById('f_hora').value = f.hora.substring(0,5);
                 document.getElementById('f_precio').value = f.precio;
+                document.getElementById('f_sala').value = f.sala || 'Sala 1';
                 
                 document.getElementById('form-funcion-title').innerText = 'Editar Horario';
                 document.getElementById('btn-funcion-submit').innerText = 'Guardar Cambios';
@@ -460,6 +480,7 @@
         function resetFormFuncion() {
             document.getElementById('formFuncion').reset();
             document.getElementById('f_id').value = '';
+            document.getElementById('f_sala').value = 'Sala 1';
             document.getElementById('form-funcion-title').innerText = 'Programar Horario';
             document.getElementById('btn-funcion-submit').innerText = 'Agendar Función';
             document.getElementById('btn-funcion-cancel').style.display = 'none';
@@ -472,7 +493,8 @@
                 pelicula_id: document.getElementById('f_peli').value,
                 fecha: document.getElementById('f_fecha').value,
                 hora: document.getElementById('f_hora').value,
-                precio: document.getElementById('f_precio').value
+                precio: document.getElementById('f_precio').value,
+                sala: document.getElementById('f_sala').value
             };
             
             try {
@@ -520,6 +542,7 @@
                 const tb = document.getElementById('tblFunciones'); tb.innerHTML = '';
                 data.forEach(f => {
                     tb.innerHTML += `<tr><td>${f.titulo_pelicula}</td><td>${formatDate(f.fecha)} ${f.hora.substring(0,5)}</td>
+                        <td><span class="badge" style="background:var(--accent); color:#000;">${f.sala || 'Sala 1'}</span></td>
                         <td>$${Number(f.precio).toFixed(2)}</td><td>${f.estado}</td>
                         <td class="table-actions">
                             <button class="btn btn-sm btn-secondary" onclick="editarFuncion(${f.id})">Editar</button>
@@ -579,6 +602,29 @@
         
         async function loadReportes() {
             try {
+                // DASHBOARD / OCUPACIÓN
+                const d = await apiCall('/admin/dashboard');
+                const ot = document.getElementById('tblOcupacion'); 
+                if (ot && d.ocupacion) {
+                    ot.innerHTML = '<thead><tr><th>Película</th><th>Sala</th><th>Fecha/Hora</th><th>Ocupación</th><th>%</th><th>Acción</th></tr></thead><tbody>';
+                    d.ocupacion.forEach(r => {
+                        const perc = ((r.asientos_ocupados / r.capacidad_total) * 100).toFixed(1);
+                        let color = 'var(--success)';
+                        if(perc > 80) color = 'var(--danger)';
+                        else if(perc > 50) color = 'var(--accent)';
+                        
+                        ot.innerHTML += `<tr>
+                            <td><strong>${r.titulo}</strong></td>
+                            <td><span class="badge" style="background:rgba(255,255,255,0.1); border:1px solid var(--border-color);">${r.sala || 'Sala 1'}</span></td>
+                            <td style="font-size:0.85rem;">${formatDate(r.fecha)} ${r.hora.substring(0,5)}</td>
+                            <td>${r.asientos_ocupados}/${r.capacidad_total}</td>
+                            <td><span class="badge" style="background:${color}; color:#000; font-weight:700;">${perc}%</span></td>
+                            <td><button class="btn btn-sm btn-primary" onclick="verMapaAsientos(${r.id})">Ver Mapa</button></td>
+                        </tr>`;
+                    });
+                    ot.innerHTML += '</tbody>';
+                }
+
                 const v = await apiCall('/admin/ventas-por-dia');
                 const vt = document.getElementById('tblVentasDia'); vt.innerHTML = '<thead><tr><th>Fecha</th><th>Ventas</th></tr></thead><tbody>';
                 v.forEach(r => vt.innerHTML += `<tr><td>${r.fecha}</td><td>$${parseFloat(r.total_ventas).toFixed(2)}</td></tr>`);
@@ -591,6 +637,13 @@
             } catch(e) {}
         }
         
+        function verMapaAsientos(fid) {
+            switchTab('asientos');
+            const sel = document.getElementById('asiento-funcion');
+            sel.value = fid;
+            cargarAsientos();
+        }
+
     </script>
 </body>
 </html>

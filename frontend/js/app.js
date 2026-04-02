@@ -96,15 +96,17 @@ function updateNavbarAuth() {
     
     if (isAuthenticated()) {
         // User is logged in - show personalized menu
-        let adminLink = '';
+        let adminLinks = '';
         if (user.rol === 'admin') {
-            adminLink = '<a href="admin.html">Admin</a>';
+            adminLinks = `
+                <a href="admin.html">Admin</a>
+                <a href="validacion.html">Validar Tiquete</a>
+            `;
         }
         
         navLinks.innerHTML = `
             <a href="index.html">Cartelera</a>
-            <a href="validacion.html">Validar Tiquete</a>
-            ${adminLink}
+            ${adminLinks}
             <span style="color: var(--text-muted); margin: 0 0.5rem;">|</span>
             <a href="#" onclick="showProfileModal(); return false;" style="color: var(--primary);">${user.nombre}</a>
             <a href="#" onclick="logout(); return false;" style="color: var(--danger);">Cerrar Sesión</a>
@@ -113,7 +115,6 @@ function updateNavbarAuth() {
         // User is not logged in - show login/register links
         navLinks.innerHTML = `
             <a href="index.html">Cartelera</a>
-            <a href="validacion.html">Validar Tiquete</a>
             <a href="login.html" style="color: var(--primary);">Iniciar Sesión</a>
             <a href="registro.html" style="color: var(--success);">Registrarse</a>
         `;

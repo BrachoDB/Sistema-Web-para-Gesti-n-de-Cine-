@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from db import get_db_connection
+from datetime import datetime, timedelta
 
 funciones_bp = Blueprint('funciones', __name__)
 
@@ -20,15 +21,81 @@ def convert_funciones_result(result):
     """Convert funciones result to JSON serializable format"""
     funciones = []
     for row in result:
-        func = dict(row)
-        # Convert hora (timedelta) to string
-        if func.get('hora'):
-            func['hora'] = str(func['hora'])
-        # Convert fecha to string if needed
-        if func.get('fecha'):
-            func['fecha'] = str(func['fecha'])
-        funciones.append(func)
+        funciones.append(convert_single_funcion(row))
     return funciones
+
+
+def convert_single_funcion(row):
+    """Convert a single function row to JSON serializable format"""
+    if not row:
+        return None
+    func = dict(row)
+    # Convert hora (timedelta) to string
+    if func.get('hora') is not None:
+        func['hora'] = str(func['hora'])
+    # Convert fecha to string if needed
+    if func.get('fecha') is not None:
+        func['fecha'] = str(func['fecha'])
+    # Convert precio (Decimal) to float if needed
+    if func.get('precio') is not None:
+        func['precio'] = float(func['precio'])
+    return func
+
+
+def check_overlap(cursor, sala, fecha, hora_str, pelicula_id, exclude_id=None):
+    """
+    Verifica si hay traslape de horarios en la misma sala y fecha.
+    Incluye un margen de 20 minutos para limpieza.
+    """
+    # 1. Obtener duración de la película propuesta
+    cursor.execute("SELECT duracion FROM peliculas WHERE id = %s", (pelicula_id,))
+    pelicula = cursor.fetchone()
+    if not pelicula:
+        return "Película no encontrada"
+    
+    duracion_nueva = pelicula['duracion']
+    
+    # Convertir fecha y hora a objetos datetime para cálculos
+    if isinstance(fecha, str):
+        fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
+    else:
+        fecha_obj = fecha
+        
+    hora_obj = datetime.strptime(hora_str[:5], '%H:%M').time()
+    inicio_nuevo = datetime.combine(fecha_obj, hora_obj)
+    fin_nuevo = inicio_nuevo + timedelta(minutes=duracion_nueva + 20)  # +20 min limpieza
+    
+    # 2. Consultar funciones existentes en la misma sala y fecha
+    sql = """
+        SELECT f.id, f.hora, p.duracion, p.titulo
+        FROM funciones f
+        JOIN peliculas p ON f.pelicula_id = p.id
+        WHERE f.sala = %s AND f.fecha = %s AND f.estado != 'cancelada'
+    """
+    params = [sala, fecha_obj]
+    if exclude_id:
+        sql += " AND f.id != %s"
+        params.append(exclude_id)
+        
+    cursor.execute(sql, tuple(params))
+    funciones_dia = cursor.fetchall()
+    
+    for f in funciones_dia:
+        # f['hora'] suele ser un objeto timedelta en pymysql para columnas TIME
+        if isinstance(f['hora'], timedelta):
+            f_inicio_time = (datetime.min + f['hora']).time()
+        else:
+            # Por si acaso viene como string
+            f_inicio_time = datetime.strptime(str(f['hora'])[:5], '%H:%M').time()
+            
+        f_inicio = datetime.combine(fecha_obj, f_inicio_time)
+        f_fin = f_inicio + timedelta(minutes=f['duracion'] + 20)
+        
+        # Algoritmo de traslape: (InicioA < FinB) AND (FinA > InicioB)
+        if inicio_nuevo < f_fin and fin_nuevo > f_inicio:
+            return f"Conflicto de horario: '{f['titulo']}' ocupa la sala de {f_inicio.strftime('%H:%M')} a {f_fin.strftime('%H:%M')} (con limpieza)."
+            
+    return None
 
 
 @funciones_bp.route('/', methods=['GET'])
@@ -203,6 +270,11 @@ def create_funcion():
             
             print(f"DEBUG - Pelicula found: {pelicula}")
             
+            # --- NUEVA VALIDACIÓN DE TRASLAPE ---
+            error_config = check_overlap(cursor, data.get('sala', 'Sala 1'), fecha, hora, pelicula_id)
+            if error_config:
+                return jsonify({"error": error_config}), 400
+            
             cursor.execute("""
                 INSERT INTO funciones (pelicula_id, fecha, hora, sala, precio, estado)
                 VALUES (%s, %s, %s, %s, %s, 'disponible')
@@ -232,7 +304,7 @@ def get_funcion(id):
             cursor.execute(sql, (id,))
             funcion = cursor.fetchone()
             if funcion:
-                return jsonify(funcion), 200
+                return jsonify(convert_single_funcion(funcion)), 200
             return jsonify({"error": "Funcion no encontrada"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -273,6 +345,21 @@ def update_funcion(id):
             
             valores.append(id)
             
+            # Si se cambia horario, sala o película, re-validar traslape
+            if any(campo in data for campo in ['fecha', 'hora', 'sala', 'pelicula_id']):
+                # Obtener valores actuales para completar la validación
+                cursor.execute("SELECT fecha, hora, sala, pelicula_id FROM funciones WHERE id = %s", (id,))
+                actual = cursor.fetchone()
+                
+                v_fecha = data.get('fecha', actual['fecha'])
+                v_hora = data.get('hora', str(actual['hora']))
+                v_sala = data.get('sala', actual['sala'])
+                v_peli = data.get('pelicula_id', actual['pelicula_id'])
+                
+                error_config = check_overlap(cursor, v_sala, v_fecha, v_hora, v_peli, exclude_id=id)
+                if error_config:
+                    return jsonify({"error": error_config}), 400
+
             cursor.execute(f"""
                 UPDATE funciones 
                 SET {', '.join(updates)}

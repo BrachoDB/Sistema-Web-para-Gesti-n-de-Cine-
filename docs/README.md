@@ -234,7 +234,8 @@ python -m http.server 5500
 - El sistema incluye un usuario administrador por defecto:
   - Email: `admin@cine.com`
   - Contraseña: `admin123`
-- La sala de cine tiene capacidad de **150 asientos** (10 filas × 15 columnas)
+- El sistema cuenta con **3 salas independientes** (Sala 1, Sala 2 y Sala 3).
+- Cada sala de cine tiene una capacidad de **150 asientos** (10 filas × 15 columnas).
 - Los códigos de tiquete son generados automáticamente en formato UUID reducido
 
 ---

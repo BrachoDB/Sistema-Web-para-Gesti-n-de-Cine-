@@ -104,11 +104,26 @@
             box-shadow: 0 4px 12px rgba(212, 168, 83, 0.3);
         }
 
+        /* QR Code Container */
+        #qrcode {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 1.5rem auto;
+            display: inline-block;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        #qrcode img {
+            display: block;
+        }
+
         @media (max-width: 480px) {
             .purchase-bar { flex-direction: column; text-align: center; }
             .ticket-code-box { flex-direction: column; padding: 1.5rem; gap: 1rem; }
         }
     </style>
+    <!-- QR Code Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <nav class="navbar">
@@ -167,6 +182,9 @@
                 <button onclick="copyTicketCode()" class="copy-btn">
                     Copiado Rápido
                 </button>
+            </div>
+            <div id="qrcode-container" style="margin-top: 1rem;">
+                <div id="qrcode"></div>
             </div>
             <br>
             <a href="index.html" class="btn btn-primary" style="margin-top: 1rem;">Volver a la cartelera</a>
@@ -258,6 +276,17 @@
                 document.getElementById('mapContainer').classList.add('hidden');
                 document.getElementById('ticketSuccess').classList.remove('hidden');
                 document.getElementById('ticketCode').innerText = res.tiquete.codigo;
+                
+                // Generar código QR
+                document.getElementById('qrcode').innerHTML = ""; // Limpiar previo si existe
+                new QRCode(document.getElementById("qrcode"), {
+                    text: res.tiquete.codigo,
+                    width: 180,
+                    height: 180,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
             } catch(e) { alert(e.message); btn.disabled = false; btn.innerText = 'Confirmar Compra'; }
         });
         

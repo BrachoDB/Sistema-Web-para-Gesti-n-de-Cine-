@@ -6,6 +6,13 @@
     <title>CineMax - Validación Tiquete</title>
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        // Check admin quickly before loading everything
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (!localStorage.getItem('token') || user.rol !== 'admin') {
+            window.location.href = 'index.html';
+        }
+    </script>
     <style>
         .validation-wrapper {
             max-width: 560px;
@@ -44,7 +51,45 @@
             animation: fadeInUp 0.4s ease-out;
             font-family: 'Outfit', sans-serif;
         }
+
+        /* QR Scanner Styles */
+        #reader {
+            width: 100%;
+            margin-top: 1rem;
+            border-radius: 12px;
+            overflow: hidden;
+            border: none !important;
+        }
+        #reader__dashboard_section_csr button {
+            background: var(--accent) !important;
+            color: #000 !important;
+            border: none !important;
+            padding: 0.6rem 1rem !important;
+            border-radius: 4px !important;
+            font-weight: 700 !important;
+            cursor: pointer !important;
+        }
+        .scanner-btn {
+            background: rgba(212, 168, 83, 0.1);
+            border: 1px dashed var(--accent);
+            color: var(--accent);
+            width: 100%;
+            padding: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+        }
+        .scanner-btn:hover {
+            background: rgba(212, 168, 83, 0.2);
+        }
     </style>
+    <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body>
     <nav class="navbar">
@@ -60,22 +105,42 @@
                 <h2>Verificar Tiquete</h2>
                 <div class="form-group" style="text-align: left;">
                     <label style="font-family: 'Outfit', sans-serif;">Código del Tiquete:</label>
-                    <input type="text" id="codigoInput" class="form-control" placeholder="X8Y1Z2A3">
+                    <input type="text" id="codigoInput" class="form-control" placeholder="X8Y1Z2A3" autofocus>
                 </div>
-                <button id="btnValidar" class="btn btn-primary" style="width: 100%; font-size: 1.1rem; padding: 1.1rem; margin-top: 1rem;">Validar Entrada</button>
+                
+                <button id="btnValidar" class="btn btn-primary" style="width: 100%; font-size: 1.1rem; padding: 1.1rem; margin-top: 1.5rem;">Validar Entrada</button>
+                
+                <div style="margin: 1.5rem 0; display: flex; align-items: center; gap: 1rem;">
+                    <hr style="flex:1; border-color: rgba(255,255,255,0.05);">
+                    <span style="color:var(--text-muted); font-size: 0.8rem;">O USA LA CÁMARA</span>
+                    <hr style="flex:1; border-color: rgba(255,255,255,0.05);">
+                </div>
+
+                <div id="scanner-controls">
+                    <button id="startScanner" class="scanner-btn">
+                        <span>📷</span> Iniciar Cámara / Escanear QR
+                    </button>
+                </div>
+                <div id="reader" style="display: none;"></div>
+
                 <div id="resultado" class="validation-result hidden"></div>
             </div>
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => updateNavbarAuth());
+        document.addEventListener('DOMContentLoaded', () => {
+            updateNavbarAuth();
+            document.getElementById('codigoInput').focus();
+        });
         
-        document.getElementById('btnValidar').addEventListener('click', async () => {
+        // --- FUNCIÓN DE VALIDACIÓN ---
+        async function realizarValidacion() {
             const codigo = document.getElementById('codigoInput').value.trim().toUpperCase();
             if(!codigo) return;
             
             const btn = document.getElementById('btnValidar');
+            const originalText = btn.innerText;
             btn.innerText = 'Verificando...'; btn.disabled = true;
 
             try {
@@ -89,14 +154,58 @@
                     resDiv.style.backgroundColor = 'rgba(62, 201, 127, 0.08)';
                     resDiv.style.borderColor = 'rgba(62, 201, 127, 0.2)';
                     resDiv.className = 'validation-result text-success';
+                    // Limpiar input para siguiente escaneo (pistola)
+                    document.getElementById('codigoInput').value = '';
+                    setTimeout(() => document.getElementById('codigoInput').focus(), 100);
                 } else {
                     resDiv.innerHTML = `<h3 style="font-family:Syne; margin-bottom:0.5rem;">ACCESO DENEGADO</h3><p>${response.estado === 'Usado' ? 'Este tiquete ya fue utilizado.' : 'Código no encontrado.'}</p>`;
                     resDiv.style.backgroundColor = 'rgba(229, 77, 95, 0.08)';
                     resDiv.style.borderColor = 'rgba(229, 77, 95, 0.2)';
                     resDiv.className = 'validation-result text-danger';
+                    document.getElementById('codigoInput').select();
                 }
             } catch (e) { alert('Error: ' + e.message); }
-            finally { btn.innerText = 'Validar Entrada'; btn.disabled = false; }
+            finally { btn.innerText = originalText; btn.disabled = false; }
+        }
+
+        // Click en botón
+        document.getElementById('btnValidar').addEventListener('click', realizarValidacion);
+        
+        // Soporte para Pistola Lectora (Enter Key)
+        document.getElementById('codigoInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                realizarValidacion();
+            }
+        });
+
+        // --- MANEJO DE CÁMARA (QR) ---
+        let html5QrCode = null;
+        document.getElementById('startScanner').addEventListener('click', () => {
+            const readerDiv = document.getElementById('reader');
+            readerDiv.style.display = 'block';
+            
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config,
+                (decodedText) => {
+                    // Si detecta QR
+                    document.getElementById('codigoInput').value = decodedText;
+                    html5QrCode.stop().then(() => {
+                        readerDiv.style.display = 'none';
+                        realizarValidacion();
+                    });
+                },
+                (errorMessage) => { /* ignore errors */ }
+            ).catch(err => {
+                alert("Error al iniciar cámara: " + err);
+                readerDiv.style.display = 'none';
+            });
         });
     </script>
 </body>

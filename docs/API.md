@@ -405,6 +405,7 @@ Content-Type: application/json
 ```
 
 **Campos Requeridos:** `pelicula_id`, `fecha`, `hora`, `precio`
+**Campos Opcionales:** `sala` (Por defecto: "Sala 1")
 
 **Respuesta Exitosa (201 Created):**
 ```json
@@ -446,6 +447,10 @@ Content-Type: application/json
   "message": "Funcion actualizada correctamente"
 }
 ```
+
+**Validaciones de Horario:**
+- El sistema no permite programar funciones en la misma **Sala** y **Fecha** cuyos horarios se traslapen.
+- Se incluye un margen automático de 20 minutos entre funciones para limpieza.
 
 ---
 
@@ -591,6 +596,7 @@ Authorization: Bearer <token>
       "titulo": "Dune: Parte Dos",
       "fecha": "2024-03-25",
       "hora": "19:30:00",
+      "sala": "Sala 1",
       "asientos_ocupados": 45,
       "capacidad_total": 150
     }
