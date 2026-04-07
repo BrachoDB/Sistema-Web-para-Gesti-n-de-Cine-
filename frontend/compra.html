@@ -280,7 +280,15 @@
                         else if (asiento.estado_funcion === 'ocupado') div.classList.add('ocupado');
                         else {
                             if (!esAdmin) div.onclick = () => {
-                                if (!isAuthenticated()) { alert('Inicia sesión para comprar'); return href = 'login.html'; }
+                                // Si el usuario no ha iniciado sesión, lo capturamos
+                                if (!isAuthenticated()) {
+                                    // Almacenamos la URL de esta sala para regresar automáticamente tras el login
+                                    const returnUrl = encodeURIComponent(`compra.html?funcion_id=${funcionId}`);
+                                    // Redirigimos al inicio de sesión con el destino de retorno y un mensaje personalizado
+                                    window.location.href = `login.html?redirect=${returnUrl}&msg=compra`;
+                                    return;
+                                }
+                                // Si ya inició sesión, permitimos seleccionar o desmarcar la silla
                                 if (div.classList.toggle('selected')) selectedSeats.push(asiento.id);
                                 else selectedSeats = selectedSeats.filter(id => id !== asiento.id);
                                 updateTotal();
