@@ -1,6 +1,12 @@
 from flask import Blueprint, jsonify, request
 from db import get_db_connection
 import uuid
+import sys
+import os
+
+# Asegurar que el directorio raíz del backend esté en el path para importar servicios
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from services.email_service import EmailService
 
 tiquetes_bp = Blueprint('tiquetes', __name__)
 
@@ -17,13 +23,23 @@ def create_tiquete():
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # Revisa que la funcion exista
-            cursor.execute("SELECT precio FROM funciones WHERE id = %s AND estado = 'disponible'", (funcion_id,))
+            # Obtenemos detalles de la función y la película para el correo
+            cursor.execute("""
+                SELECT f.precio, f.fecha, f.hora, p.titulo 
+                FROM funciones f
+                JOIN peliculas p ON f.pelicula_id = p.id
+                WHERE f.id = %s AND f.estado = 'disponible'
+            """, (funcion_id,))
             funcion = cursor.fetchone()
+            
             if not funcion:
                 return jsonify({"error": "Funcion no encontrada o no disponible"}), 404
                 
+            # Datos para el tiquete y el email
             precio_unitario = funcion['precio']
+            fecha_str = str(funcion['fecha'])
+            hora_str = str(funcion['hora'])
+            titulo_pelicula = funcion['titulo']
             total = len(asientos) * precio_unitario
             
             # Start transaction explicitly
@@ -59,6 +75,30 @@ def create_tiquete():
                 """, (tiquete_id, funcion_id, asiento_id, precio_unitario))
                 
             conn.commit()
+            
+            # PROCESO DE ENVÍO DE EMAIL:
+            # Solo si hay un usuario logueado en la compra
+            if usuario_id:
+                try:
+                    # Buscamos los datos de contacto del usuario
+                    cursor.execute("SELECT email, nombre FROM usuarios WHERE id = %s", (usuario_id,))
+                    user_data = cursor.fetchone()
+                    
+                    if user_data:
+                        # Disparamos el envío del email con el código QR generado en el servicio
+                        EmailService.send_ticket_confirmation(
+                            user_email=user_data['email'],
+                            user_name=user_data['nombre'],
+                            ticket_code=codigo,
+                            movie_title=titulo_pelicula,
+                            date=fecha_str,
+                            time=hora_str,
+                            total=total
+                        )
+                except Exception as email_err:
+                    # No bloqueamos la respuesta exitosa si falla el email
+                    print(f"Error al procesar email de tiquete: {email_err}")
+
             return jsonify({
                 "message": "Compra exitosa",
                 "tiquete": {"id": tiquete_id, "codigo": codigo, "total": total}
