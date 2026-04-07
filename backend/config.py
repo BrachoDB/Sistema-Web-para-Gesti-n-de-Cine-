@@ -30,7 +30,7 @@ class Config:
     # Mailjet Config
     MAILJET_API_KEY = os.getenv('MAILJET_USERNAME')
     MAILJET_API_SECRET = os.getenv('MAILJET_PASSWORD')
-    MAILJET_SENDER = os.getenv('MAILJET_FROM')
+    MAILJET_SENDER = os.getenv('MAIL_FROM')
     
     # URL del Frontend (para enlaces de recuperación)
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5500/frontend')
