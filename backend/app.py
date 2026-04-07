@@ -12,12 +12,9 @@ from config import Config
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-    # Deshabilitar redirect automático de slashes
     app.url_map.strict_slashes = False
-    # JWT_SECRET_KEY debe configurarse en variable de entorno (config.py)
     
-    # Configuración CORS - permitir origen del frontend
-    CORS(app, origins=["http://127.0.0.1:5500", "http://localhost:5500"], 
+    CORS(app, origins=["*"], 
          allow_headers=["Content-Type", "Authorization", "Accept"], 
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
          supports_credentials=True)
@@ -27,7 +24,7 @@ def create_app():
     # Manejadores de errores JWT
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
-        return jsonify({'error': 'Token inválido', 'details': str(error)}), 422
+        return jsonify({'error': 'Token invalido', 'details': str(error)}), 422
     
     @jwt.unauthorized_loader
     def missing_token_callback(error):
@@ -52,7 +49,6 @@ def create_app():
     
     @app.route('/health')
     def health_check():
-        """Endpoint de salud que verifica la base de datos"""
         from db import get_db_connection
         db_status = "error"
         try:

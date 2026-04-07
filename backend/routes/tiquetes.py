@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from db import get_db_connection
 import uuid
 
-# Importamos el servicio de email con seguridad manejando errores de importación
+# Importamos el servicio de email con seguridad manejando errores de importacion
 try:
     from services.email_service import EmailService
 except ImportError as e:
@@ -24,7 +24,7 @@ def create_tiquete():
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # Obtenemos detalles de la función y la película para el correo
+            # Obtenemos detalles de la funcion y la pelicula para el correo
             cursor.execute("""
                 SELECT f.precio, f.fecha, f.hora, p.titulo 
                 FROM funciones f
@@ -43,10 +43,10 @@ def create_tiquete():
             titulo_pelicula = funcion['titulo']
             total = len(asientos) * precio_unitario
             
-            # Start transaction explicitly
+            # Comienza transaccion
             conn.begin()
             
-            # Check availability
+            # Verificamos disponibilidad de asientos
             format_strings = ','.join(['%s'] * len(asientos))
             query = f"""
                 SELECT asiento_id FROM detalle_tiquete 
@@ -59,7 +59,7 @@ def create_tiquete():
                 conn.rollback()
                 return jsonify({"error": "Uno o mas asientos ya estan ocupados"}), 400
                 
-            # Create tiquete
+            # Crear tiquete
             codigo = str(uuid.uuid4())[:8].upper()
             cursor.execute("""
                 INSERT INTO tiquetes (codigo, usuario_id, funcion_id, total) 
@@ -68,7 +68,7 @@ def create_tiquete():
             
             tiquete_id = cursor.lastrowid
             
-            # Insert details
+            # Insertar detalles
             for asiento_id in asientos:
                 cursor.execute("""
                     INSERT INTO detalle_tiquete (tiquete_id, funcion_id, asiento_id, precio_unitario)
@@ -77,16 +77,12 @@ def create_tiquete():
                 
             conn.commit()
             
-            # PROCESO DE ENVÍO DE EMAIL:
-            # Solo si hay un usuario logueado en la compra
-            if usuario_id:
+            # ENVIO DE EMAIL (SI HAY USUARIO)
+            if usuario_id and EmailService:
                 try:
-                    # Buscamos los datos de contacto del usuario
                     cursor.execute("SELECT email, nombre FROM usuarios WHERE id = %s", (usuario_id,))
                     user_data = cursor.fetchone()
-                    
                     if user_data:
-                        # Disparamos el envío del email con el código QR generado en el servicio
                         EmailService.send_ticket_confirmation(
                             user_email=user_data['email'],
                             user_name=user_data['nombre'],
@@ -97,8 +93,7 @@ def create_tiquete():
                             total=total
                         )
                 except Exception as email_err:
-                    # No bloqueamos la respuesta exitosa si falla el email
-                    print(f"Error al procesar email de tiquete: {email_err}")
+                    print(f"Error al procesar email: {email_err}")
 
             return jsonify({
                 "message": "Compra exitosa",
@@ -126,7 +121,7 @@ def validar_tiquete():
             tiquete = cursor.fetchone()
             
             if not tiquete:
-                return jsonify({"estado": "Inválido"}), 200
+                return jsonify({"estado": "Invalido"}), 200
                 
             if tiquete['estado'] == 'usado':
                 return jsonify({"estado": "Usado"}), 200
@@ -134,9 +129,9 @@ def validar_tiquete():
             if tiquete['estado'] == 'valido':
                 cursor.execute("UPDATE tiquetes SET estado = 'usado' WHERE id = %s", (tiquete['id'],))
                 conn.commit()
-                return jsonify({"estado": "Válido"}), 200
+                return jsonify({"estado": "Valido"}), 200
                 
-            return jsonify({"estado": "Inválido"}), 200
+            return jsonify({"estado": "Invalido"}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
