@@ -1,7 +1,20 @@
 import base64
-import qrcode
 from io import BytesIO
-from mailjet_rest import Client
+import os
+
+# Intentamos importar librerías externas. Si fallan en servidor, no tumbamos el backend.
+try:
+    import qrcode
+except ImportError:
+    print("⚠ ¡ATENCIÓN! La librería 'qrcode' no está instalada. Los tiquetes no incluirán QR por correo.")
+    qrcode = None
+
+try:
+    from mailjet_rest import Client
+except ImportError as e:
+    print(f"⚠ ¡ATENCIÓN! La librería 'mailjet-rest' no está instalada: {e}")
+    Client = None
+
 from config import Config
 
 class EmailService:

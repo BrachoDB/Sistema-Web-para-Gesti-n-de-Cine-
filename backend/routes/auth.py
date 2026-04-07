@@ -2,13 +2,14 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, decode_token
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta
-import sys
-import os
-
-# Asegurar que el directorio raíz del backend esté en el path para importar servicios
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from services.email_service import EmailService
 from db import get_db_connection
+
+# Importamos el servicio de email con seguridad
+try:
+    from services.email_service import EmailService
+except ImportError as e:
+    print(f"⚠ Advertencia: No se pudo cargar EmailService en auth.py: {e}")
+    EmailService = None
 
 auth_bp = Blueprint('auth', __name__)
 

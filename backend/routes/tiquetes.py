@@ -1,12 +1,13 @@
 from flask import Blueprint, jsonify, request
 from db import get_db_connection
 import uuid
-import sys
-import os
 
-# Asegurar que el directorio raíz del backend esté en el path para importar servicios
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from services.email_service import EmailService
+# Importamos el servicio de email con seguridad manejando errores de importación
+try:
+    from services.email_service import EmailService
+except ImportError as e:
+    print(f"⚠ Advertencia: No se pudo cargar EmailService en tiquetes.py: {e}")
+    EmailService = None
 
 tiquetes_bp = Blueprint('tiquetes', __name__)
 

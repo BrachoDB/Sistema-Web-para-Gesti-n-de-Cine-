@@ -52,7 +52,22 @@ def create_app():
     
     @app.route('/health')
     def health_check():
-        return jsonify({"status": "ok"}), 200
+        """Endpoint de salud que verifica la base de datos"""
+        from db import get_db_connection
+        db_status = "error"
+        try:
+            conn = get_db_connection()
+            if conn:
+                db_status = "connected"
+                conn.close()
+        except Exception as e:
+            db_status = f"error: {str(e)}"
+            
+        return jsonify({
+            "status": "ok",
+            "database": db_status,
+            "environment": os.getenv('VERCEL_ENV', 'development')
+        }), 200
         
     return app
 
