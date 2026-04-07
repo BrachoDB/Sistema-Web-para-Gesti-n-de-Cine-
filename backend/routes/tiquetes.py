@@ -6,7 +6,7 @@ import uuid
 try:
     from services.email_service import EmailService
 except ImportError as e:
-    print(f"⚠ Advertencia: No se pudo cargar EmailService en tiquetes.py: {e}")
+    print(f"ADVERTENCIA: No se pudo cargar EmailService en tiquetes.py: {e}")
     EmailService = None
 
 tiquetes_bp = Blueprint('tiquetes', __name__)
