@@ -28,9 +28,9 @@ class Config:
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'dev-jwt-secret-key-cinema-456')
     
     # Mailjet Config
-    MAILJET_API_KEY = os.getenv('MAILJET_API_KEY')
-    MAILJET_API_SECRET = os.getenv('MAILJET_API_SECRET')
-    MAILJET_SENDER = os.getenv('MAILJET_SENDER', 'no-reply@cinemax.com')
+    MAILJET_API_KEY = os.getenv('MAILJET_USERNAME')
+    MAILJET_API_SECRET = os.getenv('MAILJET_PASSWORD')
+    MAILJET_SENDER = os.getenv('MAILJET_FROM')
     
     # URL del Frontend (para enlaces de recuperación)
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5500/frontend')
