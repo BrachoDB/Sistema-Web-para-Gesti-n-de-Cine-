@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 from db import get_db_connection
 import uuid
+from datetime import datetime, timedelta
+
 
 # Importamos el servicio de email con seguridad manejando errores de importacion
 try:
@@ -117,21 +119,71 @@ def validar_tiquete():
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT id, estado FROM tiquetes WHERE codigo = %s", (codigo,))
+            # Obtenemos el tiquete con datos de la función y la duración de la película
+            cursor.execute("""
+                SELECT t.id, t.estado, f.fecha, f.hora, p.duracion 
+                FROM tiquetes t
+                JOIN funciones f ON t.funcion_id = f.id
+                JOIN peliculas p ON f.pelicula_id = p.id
+                WHERE t.codigo = %s
+            """, (codigo,))
             tiquete = cursor.fetchone()
             
             if not tiquete:
-                return jsonify({"estado": "Invalido"}), 200
+                return jsonify({"estado": "Invalido", "mensaje": "Código no encontrado"}), 200
                 
             if tiquete['estado'] == 'usado':
-                return jsonify({"estado": "Usado"}), 200
+                return jsonify({
+                    "estado": "Usado", 
+                    "mensaje": "Este tiquete ya fue utilizado",
+                    "error": "Este tiquete ya fue utilizado"
+                }), 403
+            
+            # --- VALIDACIÓN DE TIEMPO ---
+            # Combinamos fecha y hora de la función
+            show_date = tiquete['fecha']
+            show_time = tiquete['hora']
+            
+            # Nota: tiquete['hora'] suele ser un objeto timedelta en pymysql si la columna es TIME
+            if isinstance(show_time, timedelta):
+                show_start = datetime.combine(show_date, (datetime.min + show_time).time())
+            else:
+                show_start = datetime.combine(show_date, show_time)
                 
+            now = datetime.now()
+            
+            # 1. ¿Es demasiado temprano? (Más de 15 minutos antes)
+            if now < (show_start - timedelta(minutes=15)):
+                minutos_faltantes = int((show_start - now).total_seconds() / 60)
+                msg = f"Demasiado temprano. Faltan {minutos_faltantes} minutos para la función."
+                return jsonify({
+                    "estado": "Temprano", 
+                    "mensaje": msg,
+                    "error": msg
+                }), 403
+            
+            # 2. ¿La función ya terminó? (Inicio + Duración)
+            show_end = show_start + timedelta(minutes=tiquete['duracion'])
+            if now > show_end:
+                msg = "La función ya ha terminado."
+                return jsonify({
+                    "estado": "Finalizada", 
+                    "mensaje": msg,
+                    "error": msg
+                }), 403
+                
+            # --- PROCESAR VALIDACIÓN ---
             if tiquete['estado'] == 'valido':
                 cursor.execute("UPDATE tiquetes SET estado = 'usado' WHERE id = %s", (tiquete['id'],))
                 conn.commit()
-                return jsonify({"estado": "Valido"}), 200
+                return jsonify({"estado": "Valido", "mensaje": "Acceso concedido"}), 200
                 
-            return jsonify({"estado": "Invalido"}), 200
+            return jsonify({
+                "estado": "Invalido", 
+                "mensaje": "Tiquete no válido",
+                "error": "Tiquete no válido"
+            }), 403
+
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500

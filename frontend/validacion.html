@@ -149,22 +149,39 @@
                 resDiv.classList.remove('hidden', 'text-success', 'text-danger');
                 resDiv.style.borderColor = 'transparent';
                 
-                if(response.estado === 'Válido') {
-                    resDiv.innerHTML = '<h3 style="font-family:Syne; margin-bottom:0.5rem;">ACCESO CONCEDIDO</h3><p>Tiquete verificado y marcado como usado.</p>';
+                // Normalizamos el estado para comparación (el backend envía 'Valido')
+                const estado = response.estado;
+                const mensaje = response.mensaje || 'Resultado no especificado';
+                
+                if(estado === 'Valido') {
+                    resDiv.innerHTML = `<h3 style="font-family:Syne; margin-bottom:0.5rem;">ACCESO CONCEDIDO</h3><p>${mensaje}</p>`;
                     resDiv.style.backgroundColor = 'rgba(62, 201, 127, 0.08)';
                     resDiv.style.borderColor = 'rgba(62, 201, 127, 0.2)';
                     resDiv.className = 'validation-result text-success';
-                    // Limpiar input para siguiente escaneo (pistola)
+                    // Limpiar input para siguiente escaneo
                     document.getElementById('codigoInput').value = '';
                     setTimeout(() => document.getElementById('codigoInput').focus(), 100);
                 } else {
-                    resDiv.innerHTML = `<h3 style="font-family:Syne; margin-bottom:0.5rem;">ACCESO DENEGADO</h3><p>${response.estado === 'Usado' ? 'Este tiquete ya fue utilizado.' : 'Código no encontrado.'}</p>`;
+                    let titulo = 'ACCESO DENEGADO';
+                    if (estado === 'Usado') titulo = 'TIQUETE USADO';
+                    if (estado === 'Temprano' || estado === 'Finalizada') titulo = 'FUERA DE TIEMPO';
+                    
+                    resDiv.innerHTML = `<h3 style="font-family:Syne; margin-bottom:0.5rem;">${titulo}</h3><p>${mensaje}</p>`;
                     resDiv.style.backgroundColor = 'rgba(229, 77, 95, 0.08)';
                     resDiv.style.borderColor = 'rgba(229, 77, 95, 0.2)';
                     resDiv.className = 'validation-result text-danger';
                     document.getElementById('codigoInput').select();
                 }
-            } catch (e) { alert('Error: ' + e.message); }
+            } catch (e) { 
+                const resDiv = document.getElementById('resultado');
+                resDiv.classList.remove('hidden', 'text-success');
+                resDiv.classList.add('text-danger');
+                resDiv.innerHTML = `<h3 style="font-family:Syne; margin-bottom:0.5rem;">ACCESO DENEGADO</h3><p>${e.message}</p>`;
+                resDiv.style.backgroundColor = 'rgba(229, 77, 95, 0.08)';
+                resDiv.style.borderColor = 'rgba(229, 77, 95, 0.2)';
+                resDiv.className = 'validation-result text-danger';
+                document.getElementById('codigoInput').select();
+            }
             finally { btn.innerText = originalText; btn.disabled = false; }
         }
 
