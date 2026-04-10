@@ -526,6 +526,9 @@ Content-Type: application/json
 | 400 | Uno o mas asientos ya estan ocupados |
 | 404 | Funcion no encontrada o no disponible |
 
+**Notificaciones:**
+- Si el usuario está autenticado, se envía automáticamente un correo electrónico premium con los detalles de la compra y un código QR adjunto para la validación en el cine.
+
 ---
 
 ### POST /tiquetes/validar
@@ -564,9 +567,33 @@ Si ya fue usado:
 Si no existe:
 ```json
 {
-  "estado": "Inválido"
+  "estado": "Invalido",
+  "mensaje": "Código no encontrado"
 }
 ```
+
+Si es demasiado temprano (antes de 15 min de la función):
+```json
+{
+  "estado": "Temprano",
+  "mensaje": "Demasiado temprano. Faltan X minutos para la función.",
+  "error": "Demasiado temprano..."
+}
+```
+
+Si la función ya terminó:
+```json
+{
+  "estado": "Finalizada",
+  "mensaje": "La función ya ha terminado.",
+  "error": "La función ya ha terminado."
+}
+```
+
+**Lógica de Validación Temporal:**
+- El acceso se permite desde **15 minutos antes** de la hora de inicio programada.
+- El tiquete expira automáticamente una vez la película ha finalizado (Hora Inicio + Duración).
+- El sistema utiliza la zona horaria de Colombia (UTC-5).
 
 **Nota:** Al validar un tiquete válido, su estado cambia automáticamente a 'usado'.
 

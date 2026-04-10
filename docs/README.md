@@ -46,7 +46,9 @@ Facilitar la compra de boletos de cine de manera digital, optimizando la experie
 | **HTML5** | Estructura de las páginas web |
 | **CSS3** | Estilos y diseño responsivo |
 | **JavaScript (Vanilla)** | Lógica del cliente y comunicación con API |
-| **Google Fonts (Inter)** | Tipografía moderna |
+| **Google Fonts (Inter, Outfit)** | Tipografías modernas y premium |
+| **Mailjet REST API** | Servicio de envío de correos electrónicos |
+| **QR Code Python** | Generación de códigos QR para tiquetes |
 
 ---
 
@@ -204,9 +206,9 @@ python -m http.server 5500
 | 🎬 **Cartelera** | Visualización de películas disponibles con funciones |
 | 🔍 **Detalle de Película** | Información completa: título, género, clasificación, imagen |
 | 🪑 **Selección de Asientos** | Mapa interactivo de la sala con disponibilidad en tiempo real |
-| 🛒 **Compra de Tiquetes** | Proceso de compra con generación de código único |
-| 🔐 **Autenticación** | Registro e inicio de sesión con JWT |
-| 🎫 **Validación de Tiquetes** | Verificación de validez de códigos QR/Tiquetes |
+| 🛒 **Compra de Tiquetes** | Proceso de compra con generación de código único y envío de correo premium |
+| 🔐 **Autenticación** | Registro e inicio de sesión con JWT y recuperación de contraseña |
+| 🎫 **Validación de Tiquetes** | Verificación de validez con ventanas de tiempo (15 min antes hasta fin) |
 
 ### 🔧 Para Administradores
 | Característica | Descripción |

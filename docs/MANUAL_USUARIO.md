@@ -178,7 +178,7 @@ Mapa interactivo de la sala:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**¡IMPORTANTE!** Guardar el código del tiquete (ej: A1B2C3D4)
+**¡IMPORTANTE!** Guardar el código del tiquete (ej: A1B2C3D4). Si iniciaste sesión, recibirás un correo electrónico premium con el código QR para un acceso más rápido.
 
 ---
 
@@ -203,9 +203,11 @@ Para verificar si un tiquete es válido:
 │  └─────────────────────────────────────────────────────┘    │
 │                                                             │
 │  Posibles resultados:                                       │
-│  ✅ Válido   - Tiquete correcto, listo para usar            │
-│  ⚠️ Usado    - El tiquete ya fue utilizado                  │
-│  ❌ Inválido - Código no encontrado                         │
+│  ✅ Válido   - Tiquete correcto, listo para usar.           │
+│  ⚠️ Usado    - El tiquete ya fue utilizado en esta función. │
+│  ⌛ Temprano  - Aún falta para la función (15 min antes).   │
+│  🚫 Finalizada - La película ya terminó y expiró.           │
+│  ❌ Inválido - Código no encontrado en el sistema.          │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
