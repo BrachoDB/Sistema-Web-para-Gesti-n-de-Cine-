@@ -1,5 +1,7 @@
 import os
 import sys
+import logging
+
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -9,7 +11,18 @@ sys.path.append(os.path.dirname(__file__))
 
 from config import Config
 
+# Configuración básica de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
 def create_app():
+
     app = Flask(__name__)
     app.config.from_object(Config)
     app.url_map.strict_slashes = False
