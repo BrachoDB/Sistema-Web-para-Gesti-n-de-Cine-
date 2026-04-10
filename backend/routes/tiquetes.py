@@ -150,7 +150,9 @@ def validar_tiquete():
             else:
                 show_start = datetime.combine(show_date, show_time)
                 
-            now = datetime.now()
+            # Ajustamos la hora actual al desfase de Colombia (UTC-5) 
+            # ya que el servidor (Vercel) opera en UTC.
+            now = datetime.now() - timedelta(hours=5)
             
             # 1. ¿Es demasiado temprano? (Más de 15 minutos antes)
             if now < (show_start - timedelta(minutes=15)):
