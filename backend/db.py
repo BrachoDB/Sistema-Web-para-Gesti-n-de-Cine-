@@ -1,5 +1,8 @@
 import pymysql
+import logging
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 def get_db_connection():
     try:
@@ -20,6 +23,6 @@ def get_db_connection():
         return conn
         
     except Exception as e:
-        print(f"ERROR: No se pudo conectar a la base de datos. Verifica tus variables de entorno.")
-        print(f"Detalle del error: {str(e)}")
+        logger.error(f"Error crítico: No se pudo conectar a la base de datos.")
+        logger.debug(f"Detalle técnico de la conexión fallida: {str(e)}")
         return None
